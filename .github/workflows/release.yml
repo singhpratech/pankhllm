@@ -97,7 +97,7 @@ jobs:
           path: pankhllm-*.zip
           if-no-files-found: error
       # pip install pankhllm-server: the same binary as a wheel, built by maturin
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: server wheel
@@ -141,7 +141,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: client sdist and wheel
