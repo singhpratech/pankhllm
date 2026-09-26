@@ -228,10 +228,14 @@ jobs:
             packaging/npm/stage.sh "$p" "bins/bin-$p/$exe" "$v"
           done
       - name: publish platform packages
+        id: platforms
         run: |
+          ok=0
           for d in packaging/npm/dist/@pankhllm/*/; do
-            (cd "$d" && npm publish --access public) || echo "skipped $d (already published?)"
+            if (cd "$d" && npm publish --access public); then ok=$((ok+1)); else echo "could not publish $d"; fi
           done
+          echo "published=$ok" >> "$GITHUB_OUTPUT"
+          [ "$ok" -gt 0 ] || { echo "no platform package published (does the npm org 'pankhllm' exist?)"; exit 1; }
       - name: publish pankhllm (launcher)
         working-directory: packaging/npm/pankhllm
         run: |
