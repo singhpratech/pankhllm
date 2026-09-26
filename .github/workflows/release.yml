@@ -212,11 +212,11 @@ jobs:
           node-version: "22"
           registry-url: https://registry.npmjs.org
       - run: npm install -g npm@11   # trusted publishing needs npm 11.5.1+
-      - name: token fallback (first release only)
-        if: env.NPM_TOKEN != ''
+      - name: token fallback (used whenever the NPM_TOKEN secret is set)
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc; echo "using NPM_TOKEN"; else echo "no NPM_TOKEN: trusted publishing"; fi
       - uses: actions/download-artifact@v4
         with:
           pattern: bin-*
