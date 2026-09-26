@@ -26,6 +26,8 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/singhpratech/pankhllm/sdks/go.svg)](https://pkg.go.dev/github.com/singhpratech/pankhllm/sdks/go)
 -->
 
+**Read the launch article:** [pankhllm: the LLM gateway that learns to skip the LLM, without replacing the stack you already run](https://theaivibe.org/blog/pankhllm-llm-gateway-learns-to-skip-the-llm) on The AI Vibe.
+
 ### The LLM gateway that learns to skip the LLM.
 
 pankhllm started as an internal fix for LLM latency in production. Our agents kept paying a
@@ -53,8 +55,6 @@ weaker (96.5% precision on phrasing written by a different model), is in
 [docs/BENCHMARK-DECISIONS.md](docs/BENCHMARK-DECISIONS.md) and [docs/JOURNAL.md](docs/JOURNAL.md).
 
 **See it run** at [singhpratech.github.io/pankhllm](https://singhpratech.github.io/pankhllm/): a recorded race between an LLM planner and pankhllm's own model on the same questions.
-
-**Read the launch article:** [pankhllm: the LLM gateway that learns to skip the LLM, without replacing the stack you already run](https://theaivibe.org/blog/pankhllm-llm-gateway-learns-to-skip-the-llm) on The AI Vibe.
 
 **Drop it in.** Nothing in your agent changes:
 
