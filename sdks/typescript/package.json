@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "typescript": "^5.4.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^26.6.2"
   },
   "homepage": "https://singhpratech.github.io/pankhllm/",
   "keywords": ["llm", "gateway", "router", "openai", "agents"],
