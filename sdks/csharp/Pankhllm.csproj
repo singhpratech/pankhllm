@@ -7,8 +7,13 @@
     <Version>0.1.0</Version>
     <Description>Client for pankhllm, the LLM gateway that learns to skip the LLM. Client and planner-lane executor.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://singhpratech.github.io/pankhllm/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/singhpratech/pankhllm</RepositoryUrl>
+    <PackageTags>llm;gateway;router;openai;agents</PackageTags>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

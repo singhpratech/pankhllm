@@ -6,12 +6,18 @@ build-backend = "maturin"
 
 [project]
 name = "pankhllm-server"
-version = "0.1.0"
+version = "0.1.1"
 description = "The LLM gateway that learns to skip the LLM: trains its own tiny decision model on your agent's traffic and answers repeat decisions in 0.2 ms with no LLM call. OpenAI-compatible, one Rust binary. The server binary for pip users: pankhllm serve"
+readme = "README.md"
 requires-python = ">=3.8"
+keywords = ["llm", "gateway", "router", "openai", "agents"]
 license = { text = "MIT" }
 
 [tool.maturin]
 bindings = "bin"
 manifest-path = "../../Cargo.toml"
 strip = true
+
+[project.urls]
+Homepage = "https://singhpratech.github.io/pankhllm/"
+Repository = "https://github.com/singhpratech/pankhllm"

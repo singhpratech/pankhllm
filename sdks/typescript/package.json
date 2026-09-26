@@ -16,6 +16,8 @@
     "typescript": "^5.4.0",
     "@types/node": "^20.0.0"
   },
+  "homepage": "https://singhpratech.github.io/pankhllm/",
+  "keywords": ["llm", "gateway", "router", "openai", "agents"],
   "engines": {
     "node": ">=18"
   },

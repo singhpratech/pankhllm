@@ -9,8 +9,13 @@
     <Version>0.1.0</Version>
     <Description>pankhllm router binary for .NET teams, with PankhllmServer.Start().</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://singhpratech.github.io/pankhllm/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/singhpratech/pankhllm</RepositoryUrl>
+    <PackageTags>llm;gateway;router;openai;agents</PackageTags>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="runtimes/**/native/*" Pack="true" PackagePath="runtimes/" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

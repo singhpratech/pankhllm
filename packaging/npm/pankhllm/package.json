@@ -12,5 +12,8 @@
     "@pankhllm/win32-x64": "0.1.0"
   },
   "engines": { "node": ">=18" },
+  "homepage": "https://singhpratech.github.io/pankhllm/",
+  "repository": { "type": "git", "url": "https://github.com/singhpratech/pankhllm.git", "directory": "packaging/npm/pankhllm" },
+  "keywords": ["llm", "gateway", "router", "openai", "agents"],
   "license": "MIT"
 }

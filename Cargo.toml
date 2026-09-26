@@ -6,6 +6,7 @@ description = "The LLM gateway that learns to skip the LLM: trains its own tiny 
 license = "MIT"
 authors = ["singhpratech"]
 readme = "README.md"
+homepage = "https://singhpratech.github.io/pankhllm/"
 repository = "https://github.com/singhpratech/pankhllm"
 keywords = ["llm", "gateway", "router", "openai", "agents"]
 categories = ["web-programming::http-server", "command-line-utilities"]
