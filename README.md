@@ -27,14 +27,16 @@
 
 ### The LLM gateway that learns to skip the LLM.
 
-Most of your agent's LLM calls aren't writing anything. They're decisions: which tool, which
-skill, which report, which parameters. Your app pays a large model seconds and tokens to make
-the same decision thousands of times a day.
+pankhllm started as an internal fix for LLM latency in production. Our agents kept paying a
+large model, seconds and tokens at a time, for the same kinds of decisions: which tool, which
+skill, which report, which parameters. The answers rarely changed. The bill and the wait did not.
 
-pankhllm sits where your app already calls an LLM. It watches those decisions, trains its own
-tiny model on them, and starts making them itself in **0.2 ms on a CPU**. It makes no LLM call
-for those questions. What it isn't sure about still goes to your LLM, exactly as before, and
-that becomes tomorrow's training data. One Rust binary. OpenAI-compatible. Change one base URL.
+So pankhllm sits where the app already calls an LLM and learns those recurring decisions
+from the traffic. Once it has seen enough of a decision to prove it, it makes that decision
+itself, in **0.2 ms on a CPU**, with no LLM call. Everything unfamiliar goes to the LLM you
+already use, exactly as before, and becomes tomorrow's training data. Nothing else in the
+stack moves: your models, your gateway, your agent framework all stay where they are.
+One Rust binary. OpenAI-compatible. Change one base URL.
 
 | Measured | |
 |---|---|
@@ -102,6 +104,25 @@ cheapest lane that can prove its answer, and every lane fails open to the next:
 3. **Decide.** At request time the model chooses only among operations the question fills
    exactly, and acts only when it is confident and the wording is familiar. Otherwise the
    question goes to the planner or the agent, exactly as before, and becomes the next label.
+
+## The scorecard
+
+Stars and architecture don't tell you whether this works in your stack. These numbers do,
+and pankhllm produces every one of them from your own traffic:
+
+| Metric | Where it comes from |
+|---|---|
+| p50, p95 and p99 latency, before and after | `decisions.mode: shadow` runs the model beside the planner without acting; the miner reports both |
+| Share of requests that bypassed the LLM safely | `model_free_share` and per-lane counts in the miner report and `GET /v1/stats` |
+| Precision of the bypassed decisions | decision calibration in the miner report; `pankhllm decide-eval` offline |
+| Model calls eliminated and cost saved | per-lane model calls and `cost_usd` in the miner report |
+| Behaviour under drift and failure | quarantine events in the heal log; unfamiliar wording falls back to the LLM by design |
+| How fast coverage grows | labels per night and decided share per day, run to run |
+
+What we can show today is benchmark and recorded runs on a fictional catalog: 63% of 2,000
+held-out questions decided with none wrong, 61% at 96.5% precision on phrasing written by
+another model, 1,743 ms to 4 ms on the same held-out questions. Production numbers belong
+to production deployments; the shadow mode and the nightly report are how you get yours.
 
 ## Install
 

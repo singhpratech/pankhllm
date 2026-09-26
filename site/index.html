@@ -212,9 +212,7 @@ footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
 <header class="hero"><div class="wrap">
   <span class="pill"><b>●</b> OpenAI-compatible · one Rust binary · MIT</span>
   <h1>The LLM gateway that learns to <span class="skip">skip the LLM</span>.</h1>
-  <p class="lede">Most of your agent's LLM calls are <strong>decisions</strong>: which tool, which skill, which report.
-  pankhllm learns them from your traffic and makes them itself in <strong>0.2&nbsp;ms on a CPU</strong>.
-  Anything it isn't sure about still goes to your LLM, and becomes tomorrow's training data.</p>
+  <p class="lede">pankhllm started as an internal fix for LLM latency in production. Our agents kept paying a large model for the <strong>same kinds of decisions</strong>: which tool, which skill, which report. pankhllm learns those recurring decisions from your traffic, makes the safe ones itself in <strong>0.2&nbsp;ms on a CPU</strong>, and leaves everything unfamiliar to the LLM you already use.</p>
   <div class="cta">
     <a class="btn primary" href="https://github.com/singhpratech/pankhllm">View on GitHub →</a>
     <a class="btn ghost" href="https://colab.research.google.com/github/singhpratech/pankhllm/blob/main/notebooks/train_pankhllm.ipynb">Train it in Colab</a>
@@ -481,6 +479,17 @@ cargo install pankhllm &amp;&amp; pankhllm serve --port 4000</pre><button class=
   <p class="note reveal">Where it's weaker: 96.5% precision on phrasing written by a different model. Details in
   <a href="https://github.com/singhpratech/pankhllm/blob/main/docs/BENCHMARK-DECISIONS.md">the benchmark</a> and
   <a href="https://github.com/singhpratech/pankhllm/blob/main/docs/JOURNAL.md">the journal</a>.</p>
+  <div class="box reveal" style="margin-top:28px">
+    <h3>The scorecard that matters, from your own traffic</h3>
+    <ul>
+      <li>p50, p95 and p99 latency before and after: run <code>decisions.mode: shadow</code> and the nightly miner reports both</li>
+      <li>share of requests that bypassed the LLM safely, and the precision of those decisions</li>
+      <li>model calls eliminated and cost saved, per lane</li>
+      <li>behaviour under drift: unfamiliar wording falls back to the LLM by design, failing routes are quarantined</li>
+      <li>how fast coverage grows, night after night</li>
+    </ul>
+    <p style="margin:12px 0 0;color:var(--muted);font-size:14px">The numbers above are benchmark and recorded runs on a fictional catalog. Production numbers belong to production deployments; shadow mode is how you get yours before acting on anything.</p>
+  </div>
 </div></section>
 
 <section id="train"><div class="wrap two">
