@@ -1,0 +1,20 @@
+# gpt-5.6 terra (medium effort) as balanced, gpt-5.6 luna as fast, local Gemma for private data,
+# luna as the non-routable judge.
+providers:
+  openai: { kind: openai, api_key_env: OPENAI_API_KEY, timeout_secs: 120 }
+  local:  { kind: openai, base_url: http://localhost:11434/v1, timeout_secs: 300 }
+models:
+  - { name: luna,  provider: openai, model: gpt-5.6-luna,  tier: fast,     context_window: 400000, effort: low,    cost: { input: 0.5, output: 4 }, timeout_secs: 60 }
+  - { name: terra, provider: openai, model: gpt-5.6-terra, tier: balanced, context_window: 400000, effort: medium, cost: { input: 2.5, output: 15 }, timeout_secs: 120 }
+  - { name: gemma-local, provider: local, model: gemma4:12b, tier: fast, context_window: 32000, max_output: 1024, tags: [private, local], timeout_secs: 180 }
+  - { name: judge, provider: openai, model: gpt-5.6-luna, tier: fast, context_window: 400000, effort: low, cost: { input: 0.5, output: 4 }, timeout_secs: 60, routable: false }
+routing:
+  rules:
+    - { name: alerts, any: ["alert", "anomal"], intent: reasoning, tier: balanced }
+    - { name: kpi-lookup, any: ["call activity", "fte", "trx", "nrx"], intent: lookup, tier: fast }
+  confidence: { threshold: 0.55, verifier: judge, on_ambiguous: clarify }
+  agent_loop: { tool_select: fast, after_tool_result: balanced }
+  max_latency_ms: 180000
+  default_max_tokens: 2000
+prompts:
+  dir: ./prompts

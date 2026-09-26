@@ -1,0 +1,40 @@
+[package]
+name = "pankhllm"
+version = "0.1.0"
+edition = "2021"
+description = "The LLM gateway that learns to skip the LLM: trains its own tiny decision model on your agent's traffic and answers repeat decisions in 0.2 ms with no LLM call. OpenAI-compatible, one Rust binary."
+license = "MIT"
+authors = ["singhpratech"]
+readme = "README.md"
+repository = "https://github.com/singhpratech/pankhllm"
+keywords = ["llm", "gateway", "router", "openai", "agents"]
+categories = ["web-programming::http-server", "command-line-utilities"]
+exclude = ["evals/*.jsonl", "sdks/", "examples/", "packaging/", "private/", "state/", "docs/"]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "http2"] }
+anyhow = "1"
+thiserror = "1"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-trait = "0.1"
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+futures = "0.3"
+bytes = "1"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

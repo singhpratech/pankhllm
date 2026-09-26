@@ -1,0 +1,17 @@
+# pip install pankhllm-server  ->  the router binary as a console script, built by maturin.
+# The pure-Python client and executor live in the `pankhllm` distribution (sdks/python).
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "pankhllm-server"
+version = "0.1.0"
+description = "The LLM gateway that learns to skip the LLM: trains its own tiny decision model on your agent's traffic and answers repeat decisions in 0.2 ms with no LLM call. OpenAI-compatible, one Rust binary. The server binary for pip users: pankhllm serve"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "../../Cargo.toml"
+strip = true

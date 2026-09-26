@@ -1,0 +1,38 @@
+# build
+/target
+**/target/
+**/node_modules/
+**/dist/
+**/__pycache__/
+*.pyc
+*.o
+*.class
+**/bin/
+**/obj/
+
+# secrets and local config: never commit keys, .env files or local overrides
+.env
+.env.*
+*.key
+*.pem
+**/local*.yaml
+!pankhllm.yaml
+
+# local-only data: real logs, labelled production data, scratch notes
+/private/
+evals/real/
+*.private.*
+state/
+pankh-work/
+
+# trained and observed state: never committed (it can hold business data)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.routes.json
+routes.json
+traces/
+reports/
+packaging/npm/dist/

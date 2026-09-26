@@ -1,0 +1,8 @@
+{"request": {"messages": [{"role": "system", "content": "You are a field assistant."}, {"role": "user", "content": "who covers T-418?"}]}, "response": {"choices": [{"message": {"role": "assistant", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "coverage_owner", "arguments": "{\"geo\": \"T-418\"}"}}]}}]}}
+{"request": {"messages": [{"role": "user", "content": "total scripts for Zelora in D-7 in 2025-03"}]}, "response": {"choices": [{"message": {"role": "assistant", "tool_calls": [{"id": "c2", "type": "function", "function": {"name": "kpi_value", "arguments": "{\"metric\": \"trx\", \"geo\": \"D-7\", \"product\": \"zelora\", \"period\": \"2025-03\"}"}}]}}]}}
+{"request": {"messages": [{"role": "user", "content": "which payers need a prior auth for Cardivex?"}], "pankhllm": {"prompt": "market-access"}}}
+{"request": {"messages": [{"role": "user", "content": "what is the max daily dose of Neurolin?"}], "pankhllm": {"prompt": "medical-info"}}}
+{"request": {"messages": [{"role": "user", "content": "is my reach in T-55 better than the district?"}]}}
+{"request": {"messages": [{"role": "user", "content": "list high decile oncologists in D-3"}]}}
+{"question": "how did NBRx move in R-2 versus last quarter", "label": "kpi_change"}
+{"question": "is Oncora covered by the biggest plan in R-1", "label": "market-access", "task": "skill"}

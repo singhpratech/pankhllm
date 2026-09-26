@@ -1,0 +1,101 @@
+# Pharma commercial KPI reporting: a generic catalog for training and evaluating
+# pankhllm's own decision model. Product names are fictional.
+providers:
+  local: { kind: openai, base_url: http://localhost:11434/v1, timeout_secs: 120 }
+models:
+  - { name: teacher, provider: local, model: gemma4:12b, tier: fast, context_window: 32000, effort: none, routable: false }
+  - { name: agent, provider: local, model: gemma4:12b, tier: balanced, context_window: 32000, effort: none, max_output: 400 }
+routing:
+  learned_routes: { enabled: false }
+decisions:
+  engine: native
+  min_confidence: 0.85
+  consensus_confidence: 0.55
+store: { path: ./state/pharma-kpi.db, redact_questions: true }
+planner:
+  enabled: true
+  model: teacher
+  timeout_ms: 20000
+  executor: { url: "http://127.0.0.1:7125/execute" }
+  operations:
+    - name: kpi_value
+      description: The value of one KPI, optionally for a geography, product and period.
+      params:
+        metric: &metric
+          type: enum
+          values: [trx, nrx, nbrx, calls, reach, frequency, market_share, samples, writers, new_writers]
+          aliases:
+            trx: [total prescriptions, total scripts, scripts, prescriptions]
+            nrx: [new prescriptions, new scripts]
+            nbrx: [new to brand prescriptions, new-to-brand, new to brand]
+            calls: [call activity, hcp calls, visits, details, sales calls]
+            reach: [call reach, reach percentage]
+            frequency: [call frequency, freq]
+            market_share: [market share, share]
+            samples: [sample drops, samples dropped]
+            writers: [prescribers writing, active writers]
+            new_writers: [new writers, new prescribers]
+        geo: { type: string, pattern: '[TDR]-\d{1,3}', optional: true, description: territory like T-123 or district like D-12 or region like R-3 }
+        product:
+          type: enum
+          optional: true
+          values: [zelora, cardivex, neurolin, oncora]
+        period: { type: string, pattern: '\d{4}-\d{2}', optional: true, description: month YYYY-MM }
+        window:
+          type: enum
+          optional: true
+          values: [mtd, qtd, ytd, last_month, last_quarter, last_4_weeks, last_13_weeks]
+          aliases:
+            mtd: [month to date, this month]
+            qtd: [quarter to date, this quarter]
+            ytd: [year to date, this year]
+            last_month: [previous month, prior month]
+            last_quarter: [previous quarter, prior quarter]
+            last_4_weeks: [past 4 weeks, last four weeks]
+            last_13_weeks: [past 13 weeks, last thirteen weeks]
+    - name: kpi_rank
+      description: Rank territories, districts, regions or prescribers by one KPI, top or bottom N.
+      params:
+        metric: *metric
+        level: { type: enum, values: [territories, districts, regions, prescribers], aliases: { territories: [territory], districts: [district], regions: [region], prescribers: [prescriber, hcps, doctors, physicians, writers] } }
+        n: { type: integer, min: 1, max: 100, default: 10 }
+        direction: { type: enum, values: [top, bottom], default: top, aliases: { top: [highest, best, leading, most, biggest], bottom: [lowest, worst, least, weakest, smallest] } }
+        geo: { type: string, pattern: '[TDR]-\d{1,3}', optional: true, description: territory like T-123 or district like D-12 or region like R-3 }
+        product: { type: enum, optional: true, values: [zelora, cardivex, neurolin, oncora] }
+        period: { type: string, pattern: '\d{4}-\d{2}', optional: true, description: month as YYYY-MM such as 2025-07 }
+    - name: kpi_vs_benchmark
+      description: How one KPI compares with peers, the nation, the region or the district.
+      params:
+        metric: *metric
+        benchmark: { type: enum, values: [peers, national, region, district], aliases: { peers: [my peers, other reps, colleagues, peer group, others], national: [nation, nationally, national average, the country, rest of the country] } }
+        geo: { type: string, pattern: '[TDR]-\d{1,3}', optional: true, description: territory like T-123 or district like D-12 or region like R-3 }
+        product: { type: enum, optional: true, values: [zelora, cardivex, neurolin, oncora] }
+        period: { type: string, pattern: '\d{4}-\d{2}', optional: true, description: month as YYYY-MM such as 2025-07 }
+    - name: kpi_change
+      description: How one KPI changed versus the prior period or the prior year.
+      params:
+        metric: *metric
+        compare: { type: enum, values: [prior_period, prior_year], aliases: { prior_period: [month over month, quarter over quarter, week over week, vs last month, versus last month, compared to last month, vs last quarter, from last month], prior_year: [year over year, yoy, vs last year, versus last year, compared to last year, same month last year] } }
+        geo: { type: string, pattern: '[TDR]-\d{1,3}', optional: true, description: territory like T-123 or district like D-12 or region like R-3 }
+        product: { type: enum, optional: true, values: [zelora, cardivex, neurolin, oncora] }
+        period: { type: string, pattern: '\d{4}-\d{2}', optional: true, description: month as YYYY-MM such as 2025-07 }
+    - name: kpi_trend
+      description: The trend of one KPI over the last N weeks, months or quarters.
+      params:
+        metric: *metric
+        grain: { type: enum, values: [weeks, months, quarters], default: months, aliases: { weeks: [weekly, week], months: [monthly, month], quarters: [quarterly, quarter] } }
+        n: { type: integer, min: 2, max: 52, default: 6 }
+        geo: { type: string, pattern: '[TDR]-\d{1,3}', optional: true, description: territory like T-123 or district like D-12 or region like R-3 }
+        product: { type: enum, optional: true, values: [zelora, cardivex, neurolin, oncora] }
+    - name: prescriber_list
+      description: List prescribers in a geography by segment and specialty.
+      params:
+        geo: { type: string, pattern: '[TDR]-\d{1,3}', description: territory like T-123 or district like D-12 or region like R-3 }
+        segment: { type: enum, optional: true, values: [high_decile, targets, new_writers, lapsed, no_see], aliases: { high_decile: [high decile, top decile, deciles 8 to 10], targets: [target, targeted], new_writers: [new writers, new prescribers], lapsed: [lapsed writers, stopped writing, lost writers], no_see: [no-see, no see, restricted access] } }
+        specialty: { type: enum, optional: true, values: [cardiology, oncology, primary_care, neurology, psychiatry], aliases: { cardiology: [cardiologists], oncology: [oncologists], primary_care: [pcps, primary care physicians, gps], neurology: [neurologists], psychiatry: [psychiatrists] } }
+        n: { type: integer, min: 1, max: 200, default: 20 }
+        product: { type: enum, optional: true, values: [zelora, cardivex, neurolin, oncora] }
+    - name: coverage_owner
+      description: Which representative covers or owns a territory, district or region.
+      params:
+        geo: { type: string, pattern: '[TDR]-\d{1,3}', description: territory like T-123 or district like D-12 or region like R-3 }

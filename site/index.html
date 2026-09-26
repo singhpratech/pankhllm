@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pankhllm: the LLM gateway that learns to skip the LLM</title>
+<meta name="description" content="pankhllm trains its own tiny model on your agent's decisions and makes them in 0.2 ms on a CPU, with no LLM call. OpenAI-compatible, one Rust binary.">
+<meta property="og:title" content="pankhllm: the LLM gateway that learns to skip the LLM">
+<meta property="og:description" content="Trains its own tiny model on your agent's decisions and makes them in 0.2 ms on a CPU. OpenAI-compatible, one Rust binary.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090f; --bg2:#0d1119; --card:#111725; --line:#1f2839; --text:#e8edf6; --muted:#8d99ae;
+  --fast:#34d399; --fast2:#10b981; --llm:#fbbf24; --accent:#8b5cf6; --accent2:#22d3ee;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+/* backdrop */
+.glow{position:fixed;inset:-20vmax;z-index:-1;pointer-events:none;
+  background:radial-gradient(40vmax 40vmax at 15% 10%,rgba(139,92,246,.18),transparent 60%),
+             radial-gradient(35vmax 35vmax at 85% 20%,rgba(34,211,238,.12),transparent 60%),
+             radial-gradient(40vmax 40vmax at 50% 100%,rgba(52,211,153,.10),transparent 60%);
+  animation:drift 24s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate3d(-3vmax,2vmax,0) rotate(6deg)}}
+.grid{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:56px 56px;mask-image:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 75%)}
+/* nav */
+nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);background:rgba(7,9,15,.7);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+.logo{font-weight:800;letter-spacing:-.02em;font-size:20px;text-decoration:none;display:flex;gap:10px;align-items:center}
+.logo i{width:22px;height:22px;border-radius:7px;background:conic-gradient(from 200deg,var(--accent),var(--accent2),var(--fast),var(--accent));display:inline-block;animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+nav .links{display:flex;gap:22px;font-size:14px;color:var(--muted)}
+nav .links a{text-decoration:none}
+nav .links a:hover{color:var(--text)}
+@media(max-width:720px){nav .links a.opt{display:none}}
+/* hero */
+.hero{padding:36px 0 40px;text-align:center}
+.pill{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);border:1px solid var(--line);background:rgba(17,23,37,.6);padding:6px 14px;border-radius:999px}
+.pill b{color:var(--fast);font-weight:600}
+h1{font-size:clamp(38px,7vw,76px);line-height:1.02;letter-spacing:-.045em;margin:22px auto 18px;max-width:16ch;font-weight:800}
+h1 .skip{background:linear-gradient(90deg,var(--fast),var(--accent2),var(--accent),var(--fast));background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen 6s linear infinite}
+@keyframes sheen{to{background-position:300% 0}}
+.lede{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:720px;margin:0 auto 30px}
+.lede strong{color:var(--text)}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;font-weight:600;text-decoration:none;font-size:15px;color:var(--text);font-family:inherit;line-height:1.3;border:0;cursor:pointer;transition:transform .15s ease,box-shadow .2s ease,background .2s}
+.btn:hover{transform:translateY(-2px)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#6d28d9);box-shadow:0 10px 30px -10px rgba(139,92,246,.7)}
+.btn.ghost{border:1px solid var(--line);background:rgba(17,23,37,.7);color:var(--text)}
+.btn.ghost:hover{border-color:#334155}
+/* flow */
+.flow{margin:54px auto 0;max-width:980px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,rgba(17,23,37,.85),rgba(13,17,25,.85));padding:18px 18px 10px;position:relative;overflow:hidden}
+.flow svg{width:100%;height:auto;display:block}
+.flow .v{display:none;max-width:360px;margin:0 auto}
+@media(max-width:640px){.flow .h{display:none}.flow .v{display:block}}
+.flow .legend{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:12.5px;color:var(--muted);padding:6px 6px 8px}
+.flow .legend b{color:var(--text)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+/* sections */
+section{padding:84px 0}
+.kicker{font-family:var(--mono);font-size:13px;color:var(--accent2);letter-spacing:.08em;text-transform:uppercase}
+h2{font-size:clamp(28px,4.4vw,44px);letter-spacing:-.03em;line-height:1.1;margin:10px 0 14px}
+.sub{color:var(--muted);max-width:680px;margin:0 0 36px;font-size:17px}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:860px){.stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.stats{grid-template-columns:1fr}}
+.stat{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:22px;position:relative;overflow:hidden;transition:transform .25s ease,border-color .25s}
+.stat:hover{transform:translateY(-4px);border-color:#334155}
+.stat::after{content:"";position:absolute;inset:auto -40% -60% auto;width:180px;height:180px;background:radial-gradient(circle,rgba(52,211,153,.14),transparent 70%)}
+.stat .num{font-size:clamp(30px,4vw,40px);font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.stat .num small{font-size:.5em;color:var(--muted);font-weight:600;margin-left:4px}
+.stat .lbl{color:var(--muted);font-size:14.5px;margin-top:4px}
+.stat.hl .num{color:var(--fast)}
+.note{color:var(--muted);font-size:13.5px;margin-top:18px}
+.note a{color:var(--accent2)}
+/* terminal */
+.term{border:1px solid var(--line);border-radius:16px;background:#05070b;overflow:hidden;box-shadow:0 40px 80px -40px rgba(0,0,0,.8)}
+.term .bar{display:flex;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line);background:#0b0f17}
+.term .bar i{width:11px;height:11px;border-radius:50%;background:#2a3346}
+.term .bar i:nth-child(1){background:#f87171}.term .bar i:nth-child(2){background:#fbbf24}.term .bar i:nth-child(3){background:#34d399}
+.term pre{margin:0;padding:18px 20px;font-family:var(--mono);font-size:13.5px;line-height:1.7;min-height:330px;white-space:pre-wrap;word-break:break-word;color:#cbd5e1}
+.term .p{color:var(--fast)} .term .c{color:var(--accent2)} .term .g{color:var(--fast)} .term .y{color:var(--llm)} .term .m{color:var(--muted)}
+.cursor{display:inline-block;width:8px;height:1.05em;background:var(--fast);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.two{display:grid;grid-template-columns:1fr 1.15fr;gap:40px;align-items:center}
+@media(max-width:900px){.two{grid-template-columns:1fr}}
+.checks{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.checks li{display:flex;gap:12px;align-items:flex-start;color:var(--muted)}
+.checks li b{color:var(--text)}
+.checks li::before{content:"";flex:0 0 22px;height:22px;border-radius:7px;margin-top:2px;background:rgba(52,211,153,.12) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2334d399' stroke-width='3'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/14px no-repeat}
+/* lanes */
+.lanes{display:grid;gap:10px}
+.lane{display:grid;grid-template-columns:170px 1fr 150px 90px;gap:16px;align-items:center;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:14px 18px;position:relative;overflow:hidden;opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease,border-color .3s}
+.lane.in{opacity:1;transform:none}
+.lane:hover{border-color:#334155}
+.lane .name{font-weight:700}
+.lane .what{color:var(--muted);font-size:14.5px}
+.lane .lat{font-family:var(--mono);font-size:13px;color:var(--fast)}
+.lane .calls{font-family:var(--mono);font-size:13px;text-align:right}
+.lane .bar{position:absolute;left:0;bottom:0;height:2px;background:linear-gradient(90deg,var(--fast),transparent);width:0;transition:width 1.2s ease}
+.lane.in .bar{width:var(--w)}
+.lane.slow .lat{color:var(--llm)} .lane.slow .bar{background:linear-gradient(90deg,var(--llm),transparent)}
+@media(max-width:760px){.lane{grid-template-columns:1fr 1fr}.lane .what{grid-column:1/-1;order:3}.lane .calls{text-align:left}}
+.lanehead{display:grid;grid-template-columns:170px 1fr 150px 90px;gap:16px;padding:0 18px 4px;font-family:var(--mono);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+@media(max-width:760px){.lanehead{display:none}}
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative}
+@media(max-width:860px){.pipe{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.pipe{grid-template-columns:1fr}}
+.step{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:20px;position:relative}
+.step .n{font-family:var(--mono);font-size:12px;color:var(--accent2)}
+.step h3{margin:6px 0 8px;font-size:18px}
+.step p{margin:0;color:var(--muted);font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:#cbd5e1;background:rgba(255,255,255,.02)}
+.step.active{border-color:rgba(139,92,246,.6);box-shadow:0 0 0 1px rgba(139,92,246,.35),0 20px 50px -25px rgba(139,92,246,.6)}
+.step{transition:border-color .4s,box-shadow .4s}
+/* code tabs */
+.tabs{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#05070b}
+.tabbar{display:flex;gap:2px;padding:6px;background:#0b0f17;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabbar button{all:unset;cursor:pointer;font-family:var(--mono);font-size:13px;color:var(--muted);padding:8px 14px;border-radius:9px;white-space:nowrap}
+.tabbar button[aria-selected=true]{background:var(--card);color:var(--text)}
+.tabbar button:focus-visible{outline:2px solid var(--accent)}
+.tabs pre{margin:0;padding:20px 90px 20px 20px;font-family:var(--mono);font-size:13.5px;line-height:1.7;overflow-x:auto;color:#cbd5e1;display:none}
+.tabs pre.on{display:block}
+.tabs .body{display:none}.tabs .body:has(pre.on){display:block}
+.k{color:#c084fc}.s{color:var(--fast)}.cm{color:#64748b}
+/* honest */
+.honest{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.honest{grid-template-columns:1fr}}
+.box{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:24px}
+.box h3{margin:0 0 10px;font-size:18px}
+.box ul{margin:0;padding-left:18px;color:var(--muted)}
+.box li{margin:6px 0}
+.box.warn{border-color:rgba(251,191,36,.25)}
+/* demo */
+.race{border:1px solid var(--line);border-radius:18px;background:var(--card);padding:18px;display:grid;gap:16px}
+.qs{display:flex;flex-wrap:wrap;gap:8px}
+.qs button{all:unset;cursor:pointer;font-size:13.5px;border:1px solid var(--line);border-radius:999px;padding:7px 13px;color:var(--muted);background:rgba(255,255,255,.02);transition:border-color .2s,color .2s}
+.qs button:hover{color:var(--text);border-color:#334155}
+.qs button[aria-pressed=true]{color:var(--text);border-color:var(--accent);background:rgba(139,92,246,.12)}
+.qs button:focus-visible{outline:2px solid var(--accent)}
+.rc{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.rc .btn{padding:10px 16px;font-size:14px}
+.rc .note{margin:0}
+.panes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.panes{grid-template-columns:1fr}}
+.pane{border:1px solid var(--line);border-radius:14px;background:#05070b;padding:16px;min-height:250px;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden}
+.pane h4{margin:0;font-size:14px;letter-spacing:.02em;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pane h4 .who{color:var(--muted);font-weight:500}
+.pane.llm h4 b{color:var(--llm)} .pane.pk h4 b{color:var(--fast)}
+.track{height:8px;border-radius:999px;background:#0f1522;overflow:hidden}
+.track i{display:block;height:100%;width:0;border-radius:999px;background:var(--llm);transition:none}
+.pane.pk .track i{background:var(--fast)}
+.clock{font-family:var(--mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pane.llm .clock{color:var(--llm)} .pane.pk .clock{color:var(--fast)}
+.lane-tag{font-family:var(--mono);font-size:12px;color:var(--muted);min-height:1.4em}
+.lane-tag b{color:var(--text);font-weight:600}
+.ans{font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cbd5e1;white-space:pre-wrap;word-break:break-word;flex:1;opacity:0;transition:opacity .3s}
+.ans.show{opacity:1}
+.pane .win{position:absolute;top:12px;right:14px;font-size:11px;font-family:var(--mono);color:var(--fast);border:1px solid rgba(52,211,153,.4);border-radius:999px;padding:2px 8px;opacity:0;transition:opacity .3s}
+.pane .win.show{opacity:1}
+.tally{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.tally b{color:var(--text)}
+.live{border-top:1px solid var(--line);padding-top:14px;display:grid;gap:10px}
+.live summary{cursor:pointer;color:var(--muted);font-size:14px}
+.live input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--text);background:#05070b;border:1px solid var(--line);border-radius:10px;padding:9px 12px;width:100%}
+.live .row{display:grid;grid-template-columns:1fr auto;gap:8px}
+.live .row .btn{padding:9px 14px;font-size:14px}
+.live .out{font-family:var(--mono);font-size:12.5px;color:#cbd5e1;white-space:pre-wrap;min-height:1.4em}
+/* copy buttons */
+.tabs .body{position:relative}
+.copy{position:absolute;top:10px;right:10px;font:600 12px var(--sans);color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;transition:color .2s,border-color .2s}
+.copy:hover{color:var(--text);border-color:#334155}
+.copy.done{color:var(--fast);border-color:rgba(52,211,153,.5)}
+footer{border-top:1px solid var(--line);padding:36px 0 50px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .reveal,.lane{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div class="glow"></div><div class="grid"></div>
+
+<nav><div class="wrap">
+  <a class="logo" href="#"><i></i>pankhllm</a>
+  <div class="links">
+    <a href="#loop">How it learns</a>
+    <a href="#demo">Demo</a>
+    <a class="opt" href="#drop-in">Drop it in</a>
+    <a class="opt" href="#numbers">Numbers</a>
+    <a class="opt" href="#how">How it works</a>
+    <a class="opt" href="#train">Train it</a>
+    <a href="https://github.com/singhpratech/pankhllm">GitHub</a>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <span class="pill"><b>●</b> OpenAI-compatible · one Rust binary · MIT</span>
+  <h1>The LLM gateway that learns to <span class="skip">skip the LLM</span>.</h1>
+  <p class="lede">Most of your agent's LLM calls are <strong>decisions</strong>: which tool, which skill, which report.
+  pankhllm learns them from your traffic and makes them itself in <strong>0.2&nbsp;ms on a CPU</strong>.
+  Anything it isn't sure about still goes to your LLM, and becomes tomorrow's training data.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/singhpratech/pankhllm">View on GitHub →</a>
+    <a class="btn ghost" href="https://colab.research.google.com/github/singhpratech/pankhllm/blob/main/notebooks/train_pankhllm.ipynb">Train it in Colab</a>
+    <a class="btn ghost" href="#demo">Watch the race</a>
+  </div>
+
+  <div class="flow" aria-label="Requests flowing through pankhllm: most are decided in 0.2 milliseconds, the rest go to the LLM">
+    <svg class="defs" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+      <defs>
+        <linearGradient id="gw" x1="0" x2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+        <filter id="blur"><feGaussianBlur stdDeviation="3"/></filter>
+      </defs>
+    </svg>
+    <svg class="h" viewBox="0 0 960 300" role="img" aria-hidden="true">
+      <!-- boxes -->
+      <g font-family="JetBrains Mono, monospace" font-size="13" fill="#e8edf6">
+        <rect x="18" y="112" width="150" height="76" rx="14" fill="#111725" stroke="#1f2839"/>
+        <text x="93" y="146" text-anchor="middle">your app</text>
+        <text x="93" y="166" text-anchor="middle" fill="#8d99ae" font-size="11">any framework</text>
+
+        <rect x="360" y="92" width="220" height="116" rx="18" fill="#111725" stroke="url(#gw)" stroke-width="1.6"/>
+        <text x="470" y="140" text-anchor="middle" font-weight="600" font-size="16">pankhllm</text>
+        <text x="470" y="162" text-anchor="middle" fill="#8d99ae" font-size="11">learns every decision</text>
+        <rect data-r="pulse" x="360" y="92" width="220" height="116" rx="18" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0"/>
+
+        <rect x="770" y="30" width="172" height="76" rx="14" fill="#0f1f1a" stroke="#1f5c47"/>
+        <text x="856" y="62" text-anchor="middle" fill="#34d399" font-weight="600">decided</text>
+        <text x="856" y="82" text-anchor="middle" fill="#8d99ae" font-size="11">0.2 ms · no LLM call</text>
+
+        <rect x="770" y="194" width="172" height="76" rx="14" fill="#1f1a0f" stroke="#5c4a1f"/>
+        <text x="856" y="226" text-anchor="middle" fill="#fbbf24" font-weight="600">your LLM</text>
+        <text x="856" y="246" text-anchor="middle" fill="#8d99ae" font-size="11">seconds · teaches it</text>
+      </g>
+      <!-- paths -->
+      <path data-r="pIn" d="M168 150 C 250 150, 280 150, 360 150" stroke="#1f2839" stroke-width="2" fill="none"/>
+      <path data-r="pFast" d="M580 150 C 660 150, 680 68, 770 68" stroke="#1f5c47" stroke-width="2" fill="none"/>
+      <path data-r="pSlow" d="M580 150 C 660 150, 680 232, 770 232" stroke="#5c4a1f" stroke-width="2" fill="none"/>
+      <path data-r="pBack" d="M770 250 C 680 290, 540 290, 470 208" stroke="#5c4a1f" stroke-width="1.5" stroke-dasharray="4 6" fill="none" opacity=".7"/>
+      <g data-r="dots"></g>
+    </svg>
+    <svg class="v" viewBox="0 0 360 470" role="img" aria-hidden="true">
+      <g font-family="JetBrains Mono, monospace" font-size="15" fill="#e8edf6">
+        <rect x="100" y="12" width="160" height="66" rx="14" fill="#111725" stroke="#1f2839"/>
+        <text x="180" y="42" text-anchor="middle">your app</text>
+        <text x="180" y="62" text-anchor="middle" fill="#8d99ae" font-size="12">any framework</text>
+        <rect x="80" y="160" width="200" height="90" rx="18" fill="#111725" stroke="url(#gw)" stroke-width="1.6"/>
+        <text x="180" y="200" text-anchor="middle" font-weight="600" font-size="18">pankhllm</text>
+        <text x="180" y="224" text-anchor="middle" fill="#8d99ae" font-size="12">learns every decision</text>
+        <rect data-r="pulse" x="80" y="160" width="200" height="90" rx="18" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0"/>
+        <rect x="8" y="360" width="160" height="80" rx="14" fill="#0f1f1a" stroke="#1f5c47"/>
+        <text x="88" y="394" text-anchor="middle" fill="#34d399" font-weight="600">decided</text>
+        <text x="88" y="416" text-anchor="middle" fill="#8d99ae" font-size="12">0.2 ms · no LLM</text>
+        <rect x="192" y="360" width="160" height="80" rx="14" fill="#1f1a0f" stroke="#5c4a1f"/>
+        <text x="272" y="394" text-anchor="middle" fill="#fbbf24" font-weight="600">your LLM</text>
+        <text x="272" y="416" text-anchor="middle" fill="#8d99ae" font-size="12">seconds · teaches</text>
+      </g>
+      <path data-r="pIn" d="M180 78 L180 160" stroke="#1f2839" stroke-width="2" fill="none"/>
+      <path data-r="pFast" d="M180 250 C 180 300, 88 310, 88 360" stroke="#1f5c47" stroke-width="2" fill="none"/>
+      <path data-r="pSlow" d="M180 250 C 180 300, 272 310, 272 360" stroke="#5c4a1f" stroke-width="2" fill="none"/>
+      <path data-r="pBack" d="M352 400 C 372 330, 330 240, 280 215" stroke="#5c4a1f" stroke-width="1.5" stroke-dasharray="4 6" fill="none" opacity=".7"/>
+      <g data-r="dots"></g>
+    </svg>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--fast)"></i>decided by pankhllm: <b id="cFast">0</b></span>
+      <span><i class="dot" style="background:var(--llm)"></i>sent to the LLM: <b id="cSlow">0</b></span>
+      <span>LLM calls skipped: <b id="cPct">0%</b></span>
+    </div>
+  </div>
+</div></header>
+
+<section id="loop" style="padding-top:40px"><div class="wrap">
+  <div class="reveal">
+    <div class="kicker">The learning loop</div>
+    <h2>Watch it learn, then get out of the way.</h2>
+    <p class="sub">Your LLM keeps answering while pankhllm watches. Every decision it sees becomes a label; every night it retrains; every morning more questions never reach the LLM.</p>
+  </div>
+  <div class="pipe" id="pipe">
+    <div class="step reveal"><div class="n">01 · OBSERVE</div><h3>Every decision is a label</h3><p>Planner choices, clean tool calls and explicit skill picks are recorded. Only the question's shape is kept.</p><div class="chips"><span class="chip">&lt;code&gt;</span><span class="chip">&lt;date&gt;</span><span class="chip">&lt;num&gt;</span></div></div>
+    <div class="step reveal"><div class="n">02 · TRAIN</div><h3>Overnight, on a CPU</h3><p><code>pankhllm mine</code> retrains the models and picks a confidence threshold for your target precision.</p><div class="chips"><span class="chip">~1 s</span><span class="chip">held-out split</span></div></div>
+    <div class="step reveal"><div class="n">03 · DECIDE</div><h3>Only when it can prove it</h3><p>It acts only when confident, the wording is familiar, and the question fills the operation's parameters exactly.</p><div class="chips"><span class="chip">0.2 ms</span><span class="chip">0 LLM calls</span></div></div>
+    <div class="step reveal"><div class="n">04 · FALL BACK</div><h3>Unsure? Your LLM answers</h3><p>Nothing breaks while it learns. That answer becomes the next label.</p><div class="chips"><span class="chip">fail-open</span><span class="chip">shadow mode</span></div></div>
+  </div>
+</div></section>
+
+<section id="drop-in" style="padding-top:40px"><div class="wrap">
+  <div class="reveal">
+    <div class="kicker">Drop it in</div>
+    <h2>Change one base URL. Keep your agent.</h2>
+    <p class="sub">LangChain, Semantic Kernel, Microsoft Agent Framework, the Vercel AI SDK, or any OpenAI client. Small pankhllm clients ship for Python, TypeScript, JavaScript, C#, Go, Java, Rust, Ruby, PHP, C, C++ and the shell.</p>
+  </div>
+  <div class="tabs reveal">
+    <div class="tabbar" role="tablist">
+      <button role="tab" aria-selected="true" data-t="py">Python</button>
+      <button role="tab" aria-selected="false" data-t="ts">TypeScript</button>
+      <button role="tab" aria-selected="false" data-t="js">JavaScript</button>
+      <button role="tab" aria-selected="false" data-t="cs">C#</button>
+      <button role="tab" aria-selected="false" data-t="go">Go</button>
+      <button role="tab" aria-selected="false" data-t="java">Java</button>
+      <button role="tab" aria-selected="false" data-t="rs">Rust</button>
+      <button role="tab" aria-selected="false" data-t="rb">Ruby</button>
+      <button role="tab" aria-selected="false" data-t="php">PHP</button>
+      <button role="tab" aria-selected="false" data-t="c">C</button>
+      <button role="tab" aria-selected="false" data-t="cpp">C++</button>
+      <button role="tab" aria-selected="false" data-t="curl">curl</button>
+      <button role="tab" aria-selected="false" data-t="sh">Run it</button>
+    </div>
+<div class="body"><pre class="on" data-p="py"><span class="k">from</span> openai <span class="k">import</span> OpenAI
+
+client = OpenAI(base_url=<span class="s">"http://localhost:4000/v1"</span>, api_key=<span class="s">"..."</span>)  <span class="cm"># was: your LLM provider</span>
+r = client.chat.completions.create(model=<span class="s">"auto"</span>, messages=[{<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"who covers R-3?"</span>}])
+<span class="cm"># r.model_extra["pankhllm"]["model"] == "decision:coverage_owner"   (2 ms, no LLM call)</span>
+
+<span class="cm"># or the pankhllm client:  pip install pankhllm</span>
+<span class="k">from</span> pankhllm <span class="k">import</span> Client
+a = Client(<span class="s">"http://localhost:4000"</span>).ask(<span class="s">"who covers R-3?"</span>, tags=[<span class="s">"private"</span>])
+print(a.text, a.model)</pre><button class="copy" data-for="py" aria-label="Copy Python snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="ts"><span class="k">import</span> OpenAI <span class="k">from</span> <span class="s">"openai"</span>;
+
+<span class="k">const</span> client = <span class="k">new</span> OpenAI({ baseURL: <span class="s">"http://localhost:4000/v1"</span>, apiKey: <span class="s">"..."</span> });
+<span class="k">const</span> r = <span class="k">await</span> client.chat.completions.create({ model: <span class="s">"auto"</span>, messages: [{ role: <span class="s">"user"</span>, content: q }] });
+
+<span class="cm">// or the pankhllm client:  npm install @pankhllm/client</span>
+<span class="k">import</span> { PankhClient } <span class="k">from</span> <span class="s">"@pankhllm/client"</span>;
+<span class="k">const</span> a = <span class="k">await</span> <span class="k">new</span> PankhClient(<span class="s">"http://localhost:4000"</span>).ask(q, { tags: [<span class="s">"private"</span>] });</pre><button class="copy" data-for="ts" aria-label="Copy TypeScript snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="js"><span class="cm">// Node 18+, plain JavaScript, no package needed</span>
+<span class="k">const</span> r = <span class="k">await</span> fetch(<span class="s">"http://localhost:4000/v1/chat/completions"</span>, {
+  method: <span class="s">"POST"</span>, headers: { <span class="s">"content-type"</span>: <span class="s">"application/json"</span> },
+  body: JSON.stringify({ model: <span class="s">"auto"</span>, messages: [{ role: <span class="s">"user"</span>, content: <span class="s">"who covers R-3?"</span> }] })
+});
+<span class="k">const</span> v = <span class="k">await</span> r.json();
+console.log(v.choices[0].message.content, v.pankhllm.model);   <span class="cm">// "decision:coverage_owner"</span>
+
+<span class="cm">// with the official openai package (CommonJS)</span>
+<span class="k">const</span> OpenAI = <span class="k">require</span>(<span class="s">"openai"</span>);
+<span class="k">const</span> client = <span class="k">new</span> OpenAI({ baseURL: <span class="s">"http://localhost:4000/v1"</span>, apiKey: <span class="s">"..."</span> });
+
+<span class="cm">// or the pankhllm client:  npm install @pankhllm/client</span>
+<span class="k">import</span> { PankhClient } <span class="k">from</span> <span class="s">"@pankhllm/client"</span>;
+<span class="k">const</span> a = <span class="k">await</span> <span class="k">new</span> PankhClient(<span class="s">"http://localhost:4000"</span>).ask(<span class="s">"who covers R-3?"</span>);</pre><button class="copy" data-for="js" aria-label="Copy JavaScript snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="cs"><span class="cm">// Semantic Kernel / Microsoft Agent Framework: change the endpoint, keep your plugins and loop</span>
+<span class="k">var</span> kernel = Kernel.CreateBuilder()
+    .AddOpenAIChatCompletion(<span class="s">"auto"</span>, <span class="k">new</span> Uri(<span class="s">"http://localhost:4000/v1"</span>), apiKey: <span class="s">"..."</span>)
+    .Build();
+
+<span class="cm">// or the pankhllm client:  dotnet add package Pankhllm</span>
+<span class="k">var</span> pk = <span class="k">new</span> Pankhllm.PankhClient(<span class="s">"http://localhost:4000"</span>);
+<span class="k">var</span> a = <span class="k">await</span> pk.AskAsync(<span class="s">"who covers R-3?"</span>, <span class="k">new</span> AskOptions { Tags = [<span class="s">"private"</span>] });
+Console.WriteLine($<span class="s">"{a.Text} via {a.Model}"</span>);</pre><button class="copy" data-for="cs" aria-label="Copy C# snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="go"><span class="k">import</span> <span class="s">"github.com/singhpratech/pankhllm/sdks/go"</span>
+
+pk := pankhllm.New(<span class="s">"http://localhost:4000"</span>)
+a, err := pk.Ask(ctx, <span class="s">"who covers R-3?"</span>, pankhllm.Options{Tags: []string{<span class="s">"private"</span>}})
+<span class="k">if</span> err != <span class="k">nil</span> { log.Fatal(err) }
+fmt.Println(a.Text, a.Model)   <span class="cm">// a.Model == "decision:coverage_owner"</span>
+
+<span class="cm">// any OpenAI Go client works too: set the base URL to http://localhost:4000/v1</span></pre><button class="copy" data-for="go" aria-label="Copy Go snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="java"><span class="k">import</span> dev.pankhllm.PankhClient;
+
+<span class="k">var</span> pk = <span class="k">new</span> PankhClient(<span class="s">"http://localhost:4000"</span>);
+<span class="k">var</span> a  = pk.ask(<span class="s">"who covers R-3?"</span>, <span class="k">new</span> PankhClient.Options().tags(List.of(<span class="s">"private"</span>)));
+System.out.println(a.text() + <span class="s">" via "</span> + a.model());
+
+<span class="cm">// Spring AI / LangChain4j / the official OpenAI Java SDK: base URL http://localhost:4000/v1</span></pre><button class="copy" data-for="java" aria-label="Copy Java snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="rs"><span class="k">use</span> pankhllm_client::{Client, Options};
+
+<span class="k">let</span> pk = Client::new(<span class="s">"http://localhost:4000"</span>);
+<span class="k">let</span> a = pk.ask(<span class="s">"who covers R-3?"</span>, &Options { tags: vec![<span class="s">"private"</span>.into()], ..Default::default() }).<span class="k">await</span>?;
+println!(<span class="s">"{} via {}"</span>, a.text, a.model);
+
+<span class="cm">// the router itself:  cargo install pankhllm  &&  pankhllm serve --port 4000</span></pre><button class="copy" data-for="rs" aria-label="Copy Rust snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="rb"><span class="k">require</span> <span class="s">"pankhllm"</span>
+
+pk = Pankhllm::Client.new(<span class="s">"http://localhost:4000"</span>)
+a  = pk.ask(<span class="s">"who covers R-3?"</span>, tags: [<span class="s">"private"</span>])
+puts <span class="s">"#{a.text} via #{a.model}"</span>
+
+<span class="cm"># ruby-openai works too:  OpenAI::Client.new(uri_base: "http://localhost:4000/v1")</span></pre><button class="copy" data-for="rb" aria-label="Copy Ruby snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="php"><span class="k">use</span> Pankhllm\Client;
+
+$pk = <span class="k">new</span> Client(<span class="s">'http://localhost:4000'</span>);
+$a  = $pk->ask(<span class="s">'who covers R-3?'</span>, [<span class="s">'tags'</span> => [<span class="s">'private'</span>]]);
+echo $a[<span class="s">'text'</span>], <span class="s">' via '</span>, $a[<span class="s">'model'</span>];
+
+<span class="cm">// openai-php works too: OpenAI::factory()->withBaseUri('http://localhost:4000/v1')</span></pre><button class="copy" data-for="php" aria-label="Copy PHP snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="c"><span class="k">#include</span> <span class="s">"pankhllm.h"</span>   <span class="cm">/* single .c/.h, libcurl */</span>
+
+<span class="k">char</span> *body = pankh_simple_body(<span class="s">"who covers R-3?"</span>, NULL, <span class="s">"[\"private\"]"</span>, 0);
+pankh_response r = pankh_chat(<span class="s">"http://localhost:4000"</span>, body, NULL);
+printf(<span class="s">"%d %s\n"</span>, r.status, r.body);
+pankh_free(r.body); pankh_free(body);</pre><button class="copy" data-for="c" aria-label="Copy C snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="cpp"><span class="k">#include</span> <span class="s">"pankhllm.hpp"</span>   <span class="cm">// header-only, libcurl</span>
+
+pankhllm::Client pk(<span class="s">"http://localhost:4000"</span>);
+std::string json = pk.chat(R<span class="s">"({"model":"auto","messages":[{"role":"user","content":"who covers R-3?"}]})"</span>);
+std::cout &lt;&lt; json &lt;&lt; std::endl;</pre><button class="copy" data-for="cpp" aria-label="Copy C++ snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="curl">curl -sS http://localhost:4000/v1/chat/completions \
+  -H <span class="s">'content-type: application/json'</span> \
+  -d <span class="s">'{"model":"auto","messages":[{"role":"user","content":"who covers R-3?"}]}'</span>
+
+<span class="cm"># the response carries "pankhllm": {"model": "decision:coverage_owner", "attempts": [...]}</span></pre><button class="copy" data-for="curl" aria-label="Copy curl snippet">Copy</button></div>
+<div class="body"><pre class="" data-p="sh"><span class="cm"># train on your files, then serve the bundle</span>
+python3 notebooks/run_trainer.py --skills ./skills --prompts agent.yaml --logs app.jsonl --teacher ollama
+./pankh-work/bundle/run.sh        <span class="cm"># http://localhost:4000/v1</span>
+
+<span class="cm"># or just the router, from source</span>
+cargo install pankhllm &amp;&amp; pankhllm serve --port 4000</pre><button class="copy" data-for="sh" aria-label="Copy Run it snippet">Copy</button></div>
+  </div>
+</div></section>
+
+<section id="demo"><div class="wrap">
+  <div class="reveal">
+    <div class="kicker">Demo · a recorded race</div>
+    <h2>Same question. Same executor. Watch who answers first.</h2>
+    <p class="sub">Left: the generative planner, a local 12B model, decides and plans. Right: pankhllm's own decision model, trained on 20,000 generated questions, decides in-process. Timings and answers are exactly as recorded on a laptop; the executor returns fictional numbers.</p>
+  </div>
+  <div class="race reveal">
+    <div class="qs" id="qs" role="group" aria-label="Pick a question"></div>
+    <div class="rc">
+      <button class="btn primary" id="go">▶ Race this question</button>
+      <button class="btn ghost" id="goAll">Run all 8</button>
+      <p class="note">Playback is slowed for the fast lane so you can see it; the numbers are real.</p>
+    </div>
+    <div class="panes">
+      <div class="pane llm">
+        <h4><span><b>Your LLM</b> <span class="who">· 12B planner, GPU</span></span></h4>
+        <div class="track"><i id="tL"></i></div>
+        <div class="clock" id="cL">0 ms</div>
+        <div class="lane-tag" id="lL"></div>
+        <div class="ans" id="aL"></div>
+      </div>
+      <div class="pane pk">
+        <span class="win" id="win">no LLM call</span>
+        <h4><span><b>pankhllm</b> <span class="who">· own model, CPU</span></span></h4>
+        <div class="track"><i id="tP"></i></div>
+        <div class="clock" id="cP">0 ms</div>
+        <div class="lane-tag" id="lP"></div>
+        <div class="ans" id="aP"></div>
+      </div>
+    </div>
+    <div class="tally" id="tally"></div>
+    <details class="live">
+      <summary>Try your own pankhllm server instead (needs <code>server.cors_origins</code> set for this page's origin)</summary>
+      <div class="row"><input id="liveUrl" placeholder="http://localhost:4000" value="http://localhost:4000"><button class="btn ghost" id="liveGo">Ask</button></div>
+      <input id="liveQ" placeholder="type a question your catalog can answer">
+      <div class="out" id="liveOut"></div>
+    </details>
+  </div>
+</div></section>
+
+<section id="numbers"><div class="wrap">
+  <div class="reveal">
+    <div class="kicker">Measured</div>
+    <h2>Every number comes from a run in the repo.</h2>
+    <p class="sub">Laptop, CPU only for pankhllm. Benchmarks, test sets and the steps that got there are in the repository, including where it's weaker.</p>
+  </div>
+  <div class="stats">
+    <div class="stat hl reveal"><div class="num"><span data-count="4" data-from="1743">1743</span><small>ms</small></div><div class="lbl">median answer on held-out questions, down from 1,743 ms with the LLM planner. 14 of 14 correct.</div></div>
+    <div class="stat reveal"><div class="num"><span data-count="0.2" data-dec="1">0</span><small>ms</small></div><div class="lbl">per decision, in-process, on one CPU core</div></div>
+    <div class="stat reveal"><div class="num"><span data-count="63">0</span><small>%</small></div><div class="lbl">of 2,000 unseen pharma KPI questions answered with no LLM call, 0 wrong</div></div>
+    <div class="stat reveal"><div class="num"><span data-count="262">0</span><small>KB</small></div><div class="lbl">all decision models, in one portable file</div></div>
+    <div class="stat reveal"><div class="num">~<span data-count="1">0</span><small>s</small></div><div class="lbl">to train on 20,000 questions, one CPU core, 45 MB RAM</div></div>
+    <div class="stat reveal"><div class="num"><span data-count="1750" data-sep="1">0</span><small>req/s</small></div><div class="lbl">server throughput, 17 MB RAM idle, 11 MB binary, no GPU</div></div>
+  </div>
+  <p class="note reveal">Where it's weaker: 96.5% precision on phrasing written by a different model. Details in
+  <a href="https://github.com/singhpratech/pankhllm/blob/main/docs/BENCHMARK-DECISIONS.md">the benchmark</a> and
+  <a href="https://github.com/singhpratech/pankhllm/blob/main/docs/JOURNAL.md">the journal</a>.</p>
+</div></section>
+
+<section id="train"><div class="wrap two">
+  <div class="reveal">
+    <div class="kicker">Teach it your domain</div>
+    <h2>Hand over your skills and logs. Get a trained gateway back.</h2>
+    <p class="sub">One command, or one sentence to your coding agent. Labels are optional: a teacher LLM labels your logs once, offline.</p>
+    <ul class="checks">
+      <li><span><b>Skills, prompts, logs.</b> Markdown skills, agent YAML, OpenAI request logs, CSV or plain text.</span></li>
+      <li><span><b>Your choice of teacher.</b> Claude, OpenAI, Azure OpenAI / AI Foundry, or a local Ollama model that keeps data on your machine.</span></li>
+      <li><span><b>Ready to run.</b> Server, <code>models.json</code>, config and skills in one bundle.</span></li>
+      <li><span><b>Ask your agent.</b> Ships as a skill for Claude Code and OpenAI Codex: "train pankhllm on these files".</span></li>
+    </ul>
+  </div>
+  <div class="term reveal" aria-label="Terminal replay of a real training run">
+    <div class="bar"><i></i><i></i><i></i></div>
+    <pre id="term"></pre>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <div class="reveal">
+    <div class="kicker">How it works</div>
+    <h2>Six lanes. Each one fails open to the next.</h2>
+    <p class="sub">pankhllm picks the cheapest path it can prove, per request. Adding a lane can only help: when a lane isn't sure, the next one answers.</p>
+  </div>
+  <div class="lanehead"><span>Lane</span><span>What answers</span><span>Latency</span><span style="text-align:right">LLM calls</span></div>
+  <div class="lanes">
+    <div class="lane" style="--w:98%"><span class="name">Cache</span><span class="what">an identical question, same tenant and data version</span><span class="lat">~1 ms</span><span class="calls">0</span><i class="bar"></i></div>
+    <div class="lane" style="--w:92%"><span class="name">Learned route</span><span class="what">a question shape seen before, with new entities</span><span class="lat">~1 ms + tool</span><span class="calls">0</span><i class="bar"></i></div>
+    <div class="lane" style="--w:90%"><span class="name">Rule</span><span class="what">a pattern you pinned</span><span class="lat">~1 ms + tool</span><span class="calls">0</span><i class="bar"></i></div>
+    <div class="lane" style="--w:86%"><span class="name">Decision</span><span class="what">pankhllm's own model picks the operation, tool or skill and fills the parameters</span><span class="lat">0.2 ms + tool</span><span class="calls">0</span><i class="bar"></i></div>
+    <div class="lane slow" style="--w:45%"><span class="name">Planner</span><span class="what">a new question that maps to your catalog; this is the teacher</span><span class="lat">one small call</span><span class="calls">1</span><i class="bar"></i></div>
+    <div class="lane slow" style="--w:20%"><span class="name">Agent</span><span class="what">explanation, judgement, open-ended work: your LLM, hedged and streamed</span><span class="lat">as needed</span><span class="calls">n</span><i class="bar"></i></div>
+  </div>
+</div></section>
+
+
+
+<section><div class="wrap">
+  <div class="honest">
+    <div class="box reveal"><h3>What it is</h3><ul>
+      <li>A self-learning, OpenAI-compatible gateway in one Rust binary</li>
+      <li>Its own tiny decision models: operations, tools, skills</li>
+      <li>Routing, hedging, caching and budgets around the LLM calls that remain</li>
+      <li>A trace store and overnight miner that turn traffic into training data</li>
+    </ul></div>
+    <div class="box warn reveal"><h3>What it isn't</h3><ul>
+      <li>Not an LLM, and not a replacement for yours</li>
+      <li>Explanations, judgement and open-ended writing still go to your model</li>
+      <li>With only a few dozen logged questions it stays cautious; it takes over as logs grow</li>
+    </ul></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span>pankhllm · MIT license</span>
+  <span><a href="https://github.com/singhpratech/pankhllm">GitHub</a> · <a href="https://github.com/singhpratech/pankhllm/blob/main/docs/TRAINING.md">Training guide</a> · <a href="https://github.com/singhpratech/pankhllm/blob/main/docs/BENCHMARK-DECISIONS.md">Benchmarks</a></span>
+</div></footer>
+
+<script>
+(() => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- request flow: 63% decided, 37% to the LLM, matching the measured coverage
+  const view = () => [...document.querySelectorAll(".flow svg.h, .flow svg.v")].find(v => v.getBoundingClientRect().width > 0) || document.querySelector(".flow svg.h");
+  let pIn, pFast, pSlow, pBack, pulse, dots;
+  const bind = () => { const v = view(), q = r => v.querySelector(`[data-r="${r}"]`);
+    [pIn, pFast, pSlow, pBack, pulse, dots] = ["pIn", "pFast", "pSlow", "pBack", "pulse", "dots"].map(q); };
+  bind(); addEventListener("resize", bind);
+  const P = id => document.getElementById(id);
+  const L = p => p.getTotalLength();
+  let fast = 0, slow = 0;
+  const cF = P("cFast"), cS = P("cSlow"), cP = P("cPct");
+  const upd = () => { cF.textContent = fast; cS.textContent = slow; cP.textContent = Math.round(100 * fast / Math.max(1, fast + slow)) + "%"; };
+  function dot(color, r = 5) {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("r", r); c.setAttribute("fill", color);
+    const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    h.setAttribute("r", r * 2.2); h.setAttribute("fill", color); h.setAttribute("opacity", ".25"); h.setAttribute("filter", "url(#blur)");
+    dots.append(h, c); return [c, h];
+  }
+  function travel(els, path, ms, done) {
+    const len = L(path), t0 = performance.now();
+    (function step(t) {
+      const k = Math.min(1, (t - t0) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const pt = path.getPointAtLength(e * len);
+      els.forEach(el => { el.setAttribute("cx", pt.x); el.setAttribute("cy", pt.y); });
+      k < 1 ? requestAnimationFrame(step) : done && done();
+    })(t0);
+  }
+  function flash() { pulse.animate([{ opacity: .9 }, { opacity: 0 }], { duration: 500 }); }
+  function spawn() {
+    const toLLM = Math.random() < 0.37;
+    const els = dot("#8b5cf6");
+    travel(els, pIn, 900, () => {
+      flash();
+      els.forEach(e => e.setAttribute("fill", toLLM ? "#fbbf24" : "#34d399"));
+      if (toLLM) {
+        travel(els, pSlow, 1900, () => {
+          slow++; upd();
+          els.forEach(e => e.remove());
+          const b = dot("#fbbf24", 3);          // the answer becomes a label
+          travel(b, pBack, 1500, () => b.forEach(e => e.remove()));
+        });
+      } else {
+        travel(els, pFast, 420, () => { fast++; upd(); els.forEach(e => e.remove()); });
+      }
+    });
+  }
+  if (!reduce) { spawn(); setInterval(spawn, 520); } else { fast = 63; slow = 37; upd(); }
+
+  // ---- reveal on scroll
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .15 });
+  document.querySelectorAll(".reveal,.lane").forEach((el, i) => { el.style.transitionDelay = (el.classList.contains("lane") ? (i % 6) * 90 : 0) + "ms"; io.observe(el); });
+
+  // ---- counters
+  const fmt = (v, el) => { const d = +el.dataset.dec || 0; let s = v.toFixed(d); if (el.dataset.sep) s = (+s).toLocaleString("en-US"); return s; };
+  const cio = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return; cio.unobserve(e.target);
+    const el = e.target, to = +el.dataset.count, from = +(el.dataset.from || 0);
+    if (reduce) { el.textContent = fmt(to, el); return; }
+    const t0 = performance.now(), dur = from > to ? 2200 : 1600;
+    (function step(t) { const k = Math.min(1, (t - t0) / dur), e2 = 1 - Math.pow(1 - k, 4); el.textContent = fmt(from + (to - from) * e2, el); if (k < 1) requestAnimationFrame(step); })(t0);
+  }), { threshold: .6 });
+  document.querySelectorAll("[data-count]").forEach(el => cio.observe(el));
+
+  // ---- terminal replay (output of a real run: 3 skills, 1 prompt file, 40 unlabelled questions, local teacher)
+  const lines = [
+    ["p", "$ python3 notebooks/run_trainer.py --skills ./skills --prompts support-agent.md \\\n    --logs app-log.txt --teacher ollama"],
+    ["m", "teacher: ollama / gemma4:12b"],
+    ["", "field-kpi        triggers=7  examples=4\nmarket-access    triggers=4  examples=4\nmedical-info     triggers=5  examples=4\nsupport-agent    always"],
+    ["c", "3 choosable skills; skill routing will be trained"],
+    ["", "40 questions from 1 file · train 32 · test 8"],
+    ["y", "== skill labels (teacher)"],
+    ["", "teacher labelled 32: field-kpi 10 · market-access 9 · medical-info 7 · none 6"],
+    ["y", "== mine and train"],
+    ["", "skill  labels 4  weights 1,452"],
+    ["y", "== export bundle"],
+    ["", "models.json   28.9 KB\npankhllm      11.4 MB\nprompts/      4 files\nrun.sh"],
+    ["g", "done in 26 s · bundle ready: ./pankh-work/bundle/run.sh"],
+  ];
+  const term = document.getElementById("term");
+  let started = false;
+  function play() {
+    if (started) return; started = true;
+    if (reduce) { term.innerHTML = lines.map(([c, t]) => `<span class="${c}">${t}</span>`).join("\n"); return; }
+    let i = 0;
+    (function next() {
+      if (i >= lines.length) { term.insertAdjacentHTML("beforeend", '\n<span class="cursor"></span>'); setTimeout(() => { term.textContent = ""; i = 0; started = false; play(); }, 6000); return; }
+      const [cls, text] = lines[i++];
+      const span = document.createElement("span"); span.className = cls; term.append(span);
+      if (cls === "p") {
+        let j = 0; (function type() { span.textContent = text.slice(0, ++j); if (j < text.length) setTimeout(type, 18); else { term.append("\n"); setTimeout(next, 400); } })();
+      } else { span.textContent = text; term.append("\n"); setTimeout(next, 260 + text.length * 4); }
+    })();
+  }
+  new IntersectionObserver(es => es.forEach(e => e.isIntersecting && play()), { threshold: .3 }).observe(term);
+
+  // ---- learning loop highlight
+  const steps = [...document.querySelectorAll("#pipe .step")]; let si = 0;
+  if (!reduce) setInterval(() => { steps.forEach((s, k) => s.classList.toggle("active", k === si)); si = (si + 1) % steps.length; }, 1600);
+
+  // ---- tabs + copy
+  document.querySelectorAll(".tabbar button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(".tabbar button").forEach(x => x.setAttribute("aria-selected", x === b));
+    document.querySelectorAll(".tabs pre").forEach(p => p.classList.toggle("on", p.dataset.p === b.dataset.t));
+  }));
+  document.querySelectorAll(".copy").forEach(b => b.addEventListener("click", async () => {
+    const pre = document.querySelector(`.tabs pre[data-p="${b.dataset.for}"]`);
+    try { await navigator.clipboard.writeText(pre.innerText); b.textContent = "Copied"; b.classList.add("done"); }
+    catch { b.textContent = "Select & copy"; }
+    setTimeout(() => { b.textContent = "Copy"; b.classList.remove("done"); }, 1600);
+  }));
+
+  // ---- demo race (recorded runs; see docs/BENCHMARK-DECISIONS.md for the setup)
+  const RACE = [{"q": "what were total scripts for Zelora in T-118 in 2025-06?", "llm": {"ms": 2634.0, "lane": "planner:kpi_value", "text": "{\n  \"metric\": \"trx\",\n  \"geo\": \"T-118\",\n  \"product\": \"zelora\",\n  \"period\": \"2025-06\",\n  \"value\": 3790\n}"}, "pk": {"ms": 6.9, "lane": "decision:kpi_value", "text": "{\n  \"metric\": \"trx\",\n  \"geo\": \"T-118\",\n  \"product\": \"zelora\",\n  \"period\": \"2025-06\",\n  \"value\": 3790\n}"}}, {"q": "how is D-12 doing against my peers on call reach?", "llm": {"ms": 2114.7, "lane": "planner:kpi_vs_benchmark", "text": "{\n  \"metric\": \"reach\",\n  \"geo\": \"D-12\",\n  \"value\": 431,\n  \"benchmark\": \"peers\",\n  \"benchmark_value\": 1466,\n  \"index\": 29\n}"}, "pk": {"ms": 1.7, "lane": "decision:kpi_vs_benchmark", "text": "{\n  \"metric\": \"reach\",\n  \"geo\": \"D-12\",\n  \"value\": 431,\n  \"benchmark\": \"peers\",\n  \"benchmark_value\": 1466,\n  \"index\": 29\n}"}}, {"q": "top 5 territories by NBRx for Cardivex last quarter", "llm": {"ms": 2598.9, "lane": "planner:kpi_rank", "text": "| name | nbrx |\n| --- | --- |\n| territory 1 | 4073 |\n| territory 2 | 1859 |\n| territory 3 | 1881 |\n| territory 4 | 4043 |\n| territory 5 | 3960 |\n"}, "pk": {"ms": 3.0, "lane": "decision:kpi_rank", "text": "| name | nbrx |\n| --- | --- |\n| territory 1 | 4073 |\n| territory 2 | 1859 |\n| territory 3 | 1881 |\n| territory 4 | 4043 |\n| territory 5 | 3960 |\n"}}, {"q": "who covers R-3?", "llm": {"ms": 1270.1, "lane": "planner:coverage_owner", "text": "{\n  \"geo\": \"R-3\",\n  \"owner\": \"Rep 308\"\n}"}, "pk": {"ms": 1.7, "lane": "decision:coverage_owner", "text": "{\n  \"geo\": \"R-3\",\n  \"owner\": \"Rep 308\"\n}"}}, {"q": "which cardiologists in T-240 are lapsed writers?", "llm": {"ms": 3723.9, "lane": "agent", "text": "I do not have access to private medical records, internal hospital databases, or specific physician rosters such as \"T-240.\" I cannot identify specific individuals or their clinical performance metrics."}, "pk": {"ms": 1.9, "lane": "decision:prescriber_list", "text": "| npi | segment | specialty |\n| --- | --- | --- |\n| FAKE59969 | lapsed | cardiology |\n| FAKE47504 | lapsed | cardiology |\n| FAKE68357 | lapsed | cardiology |\n| FAKE87795 | lapsed | cardiology |\n| FAKE70508 | lapsed | cardiology |\n"}}, {"q": "market share for Neurolin in R-2 year to date", "llm": {"ms": 3673.5, "lane": "agent", "text": "Please provide the tool results or the specific data table so I can answer your question based on the information provided."}, "pk": {"ms": 1.7, "lane": "decision:kpi_value", "text": "{\n  \"metric\": \"market_share\",\n  \"geo\": \"R-2\",\n  \"product\": \"neurolin\",\n  \"period\": \"ytd\",\n  \"value\": 1767\n}"}}, {"q": "how did calls for Oncora in D-9 change year over year?", "llm": {"ms": 2458.3, "lane": "planner:kpi_change", "text": "{\n  \"metric\": \"calls\",\n  \"compare\": \"prior_year\",\n  \"value\": 1870,\n  \"prior\": 1642,\n  \"change_pct\": 13.9\n}"}, "pk": {"ms": 1.7, "lane": "decision:kpi_change", "text": "{\n  \"metric\": \"calls\",\n  \"compare\": \"prior_year\",\n  \"value\": 1870,\n  \"prior\": 1642,\n  \"change_pct\": 13.9\n}"}}, {"q": "why did calls fall in T-112 in 2025-08?", "llm": {"ms": 1392.9, "lane": "agent", "text": "Please provide the tool results or the specific data output for T-112. The current context does not include the tool data needed to answer this question."}, "pk": {"ms": 1138.9, "lane": "agent", "text": "Please provide the tool results or the relevant data source. I do not have access to any data regarding \"T-112\" or the \"2025-08\" period in the current context."}}];
+  const $ = id => document.getElementById(id);
+  const qs = $("qs"); let cur = 0, playing = false, timers = [];
+  RACE.forEach((r, i) => { const b = document.createElement("button"); b.textContent = r.q; b.setAttribute("aria-pressed", i === 0); b.addEventListener("click", () => { cur = i; qs.querySelectorAll("button").forEach((x, k) => x.setAttribute("aria-pressed", k === i)); reset(); }); qs.append(b); });
+  const fmtMs = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : ms.toFixed(ms < 10 ? 1 : 0) + " ms";
+  const laneText = l => l.startsWith("decision:") ? `<b>decision:${l.slice(9)}</b> · own model, no LLM call` : l.startsWith("planner:") ? `<b>planner:${l.slice(8)}</b> · LLM planned it` : l === "agent" ? `<b>agent</b> · sent to the LLM to write` : `<b>${l}</b>`;
+  function reset() { timers.forEach(clearTimeout); timers = []; playing = false; ["tL", "tP"].forEach(i => $(i).style.width = "0"); $("cL").textContent = "0 ms"; $("cP").textContent = "0 ms"; ["lL", "lP"].forEach(i => $(i).innerHTML = ""); ["aL", "aP"].forEach(i => { $(i).textContent = ""; $(i).classList.remove("show"); }); $("win").classList.remove("show"); }
+  function race(i, done) {
+    reset(); playing = true;
+    const r = RACE[i], slow = r.llm.ms, fast = r.pk.ms;
+    const scale = Math.min(1, 3200 / slow);                 // cap the LLM side at ~3.2 s of playback
+    const fastPlay = Math.max(350, fast * scale);           // the fast lane gets at least 350 ms so it's visible
+    const t0 = performance.now();
+    const step = t => {
+      const el = t - t0;
+      const kL = Math.min(1, el / (slow * scale)), kP = Math.min(1, el / fastPlay);
+      $("tL").style.width = (kL * 100) + "%"; $("tP").style.width = (kP * 100) + "%";
+      $("cL").textContent = fmtMs(Math.min(slow, el / scale)); $("cP").textContent = fmtMs(Math.min(fast, fast * kP));
+      if (kP >= 1 && !$("aP").classList.contains("show")) { $("lP").innerHTML = laneText(r.pk.lane); $("aP").textContent = r.pk.text; $("aP").classList.add("show"); if (r.pk.lane.startsWith("decision:")) $("win").classList.add("show"); }
+      if (kL >= 1) { $("lL").innerHTML = laneText(r.llm.lane); $("aL").textContent = r.llm.text; $("aL").classList.add("show"); playing = false; done && done(); return; }
+      if (playing) requestAnimationFrame(step);
+    };
+    if (reduce) { $("tL").style.width = $("tP").style.width = "100%"; $("cL").textContent = fmtMs(slow); $("cP").textContent = fmtMs(fast); $("lL").innerHTML = laneText(r.llm.lane); $("lP").innerHTML = laneText(r.pk.lane); $("aL").textContent = r.llm.text; $("aP").textContent = r.pk.text; $("aL").classList.add("show"); $("aP").classList.add("show"); if (r.pk.lane.startsWith("decision:")) $("win").classList.add("show"); playing = false; done && done(); return; }
+    requestAnimationFrame(step);
+  }
+  const decided = RACE.filter(r => r.pk.lane.startsWith("decision:")).length;
+  const med = a => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  $("tally").innerHTML = `<span>questions: <b>${RACE.length}</b></span><span>answered with no LLM call: <b>${decided}</b></span><span>median, LLM planner: <b>${fmtMs(med(RACE.map(r => r.llm.ms)))}</b></span><span>median, pankhllm: <b>${fmtMs(med(RACE.filter(r => r.pk.lane.startsWith("decision:")).map(r => r.pk.ms)))}</b></span>`;
+  $("go").addEventListener("click", () => race(cur));
+  $("goAll").addEventListener("click", () => { let i = 0; const next = () => { if (i >= RACE.length) return; cur = i; qs.querySelectorAll("button").forEach((x, k) => x.setAttribute("aria-pressed", k === i)); race(i++, () => timers.push(setTimeout(next, 1400))); }; next(); });
+  $("liveGo").addEventListener("click", async () => {
+    const url = $("liveUrl").value.replace(/\/+$/, ""), q = $("liveQ").value.trim(); if (!q) return;
+    $("liveOut").textContent = "asking…"; const t = performance.now();
+    try {
+      const v = await (await fetch(url + "/v1/chat/completions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: "auto", messages: [{ role: "user", content: q }] }) })).json();
+      const ms = performance.now() - t, lane = v.pankhllm?.model || v.error?.message || "?";
+      $("liveOut").textContent = `${fmtMs(ms)}  ${lane}\n${v.choices?.[0]?.message?.content || ""}`;
+    } catch (e) { $("liveOut").textContent = "could not reach the server (is it running, and is this page's origin in server.cors_origins?)"; }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,285 @@
+name: release
+
+# Builds the router for five platforms and publishes every package.
+#   - push a tag v0.1.0            -> build, GitHub release, publish to all registries
+#   - Run workflow (publish=false) -> build only, artifacts attached to the run (a dry run)
+# Publishing is keyless where the registry supports it (trusted publishing / OIDC):
+# PyPI, NuGet, crates.io and npm exchange this workflow's identity for a short-lived
+# credential. crates.io and npm need one manual first publish before that works.
+# Registry tokens stored as secrets are used instead when present.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "publish to registries (false = build only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          crate=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF#refs/tags/v}"
+            [[ "$tag" == "$crate" ]] || { echo "tag v$tag does not match Cargo.toml version $crate"; exit 1; }
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=${{ inputs.publish }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$crate" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux-x64,    rid: linux-x64,   os: ubuntu-22.04,     target: x86_64-unknown-linux-gnu,  exe: pankhllm }
+          - { platform: linux-arm64,  rid: linux-arm64, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, exe: pankhllm }
+          - { platform: darwin-x64,   rid: osx-x64,     os: macos-13,         target: x86_64-apple-darwin,       exe: pankhllm }
+          - { platform: darwin-arm64, rid: osx-arm64,   os: macos-14,         target: aarch64-apple-darwin,      exe: pankhllm }
+          - { platform: win32-x64,    rid: win-x64,     os: windows-latest,   target: x86_64-pc-windows-msvc,    exe: pankhllm.exe }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: smoke test
+        shell: bash
+        run: target/${{ matrix.target }}/release/${{ matrix.exe }} --version
+      - name: stage
+        shell: bash
+        run: |
+          mkdir -p out/bin
+          cp target/${{ matrix.target }}/release/${{ matrix.exe }} out/bin/
+          cd out
+          if [[ "${{ matrix.platform }}" == win32-* ]]; then
+            7z a ../pankhllm-${{ needs.version.outputs.version }}-${{ matrix.platform }}.zip bin/${{ matrix.exe }} >/dev/null
+          else
+            tar czf ../pankhllm-${{ needs.version.outputs.version }}-${{ matrix.platform }}.tar.gz bin/${{ matrix.exe }}
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.platform }}
+          path: out/bin/${{ matrix.exe }}
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.platform }}
+          path: pankhllm-*.tar.gz
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: startsWith(matrix.platform, 'win32')
+        with:
+          name: archive-${{ matrix.platform }}
+          path: pankhllm-*.zip
+          if-no-files-found: error
+      # pip install pankhllm-server: the same binary as a wheel, built by maturin
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: server wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --locked --out ../../wheels
+          working-directory: packaging/python-server
+          target: ${{ matrix.target }}
+          manylinux: "2_28"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.platform }}
+          path: wheels/*.whl
+          if-no-files-found: error
+
+  github-release:
+    needs: [version, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: archives
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: pankhllm ${{ needs.version.outputs.version }}
+          generate_release_notes: true
+          files: archives/*
+
+  publish-pypi:
+    needs: [version, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write   # trusted publishing: no PyPI token
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: client sdist and wheel
+        run: |
+          python -m pip install -q build
+          python -m build --outdir dist-client sdks/python
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          merge-multiple: true
+          path: dist-server
+      - name: publish pankhllm (client)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-client
+          skip-existing: true
+          password: ${{ secrets.PYPI_API_TOKEN }}
+      - name: publish pankhllm-server (binary wheels)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-server
+          skip-existing: true
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  publish-crates:
+    needs: [version, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write   # trusted publishing after the first manual publish
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - id: auth
+        if: env.HAS_TOKEN == ''
+        uses: rust-lang/crates-io-auth-action@v1
+        env:
+          HAS_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: publish pankhllm-client
+        working-directory: sdks/rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+        run: |
+          v=${{ needs.version.outputs.version }}
+          if curl -sf "https://crates.io/api/v1/crates/pankhllm-client/$v" -A pankhllm-release >/dev/null; then echo "already published"; else cargo publish --locked; fi
+      - name: publish pankhllm
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+        run: |
+          v=${{ needs.version.outputs.version }}
+          if curl -sf "https://crates.io/api/v1/crates/pankhllm/$v" -A pankhllm-release >/dev/null; then echo "already published"; else cargo publish --locked; fi
+
+  publish-npm:
+    needs: [version, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write   # trusted publishing once each package exists
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@11   # trusted publishing needs npm 11.5.1+
+      - name: token fallback (first release only)
+        if: env.NPM_TOKEN != ''
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: bins
+      - name: stage platform packages
+        run: |
+          v=${{ needs.version.outputs.version }}
+          for p in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+            exe=pankhllm; [[ $p == win32-* ]] && exe=pankhllm.exe
+            packaging/npm/stage.sh "$p" "bins/bin-$p/$exe" "$v"
+          done
+      - name: publish platform packages
+        run: |
+          for d in packaging/npm/dist/@pankhllm/*/; do
+            (cd "$d" && npm publish --access public) || echo "skipped $d (already published?)"
+          done
+      - name: publish pankhllm (launcher)
+        working-directory: packaging/npm/pankhllm
+        run: |
+          npm version ${{ needs.version.outputs.version }} --no-git-tag-version --allow-same-version
+          npm publish --access public || echo "skipped (already published?)"
+      - name: publish @pankhllm/client
+        working-directory: sdks/typescript
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          npm version ${{ needs.version.outputs.version }} --no-git-tag-version --allow-same-version
+          npm publish --access public || echo "skipped (already published?)"
+
+  publish-nuget:
+    needs: [version, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write   # trusted publishing: no NuGet API key
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: bins
+      - name: place binaries by runtime identifier
+        run: |
+          set -e
+          declare -A rid=( [linux-x64]=linux-x64 [linux-arm64]=linux-arm64 [darwin-x64]=osx-x64 [darwin-arm64]=osx-arm64 [win32-x64]=win-x64 )
+          for p in "${!rid[@]}"; do
+            exe=pankhllm; [[ $p == win32-* ]] && exe=pankhllm.exe
+            d=packaging/nuget/Pankhllm.Server/runtimes/${rid[$p]}/native; mkdir -p "$d"
+            cp "bins/bin-$p/$exe" "$d/"; chmod +x "$d/$exe"
+          done
+      - name: pack
+        run: |
+          v=${{ needs.version.outputs.version }}
+          dotnet pack sdks/csharp/Pankhllm.csproj -c Release -p:Version=$v -o nupkgs
+          dotnet pack packaging/nuget/Pankhllm.Server/Pankhllm.Server.csproj -c Release -p:Version=$v -o nupkgs
+      - name: NuGet login (OIDC to a temporary key)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: push
+        run: dotnet nuget push "nupkgs/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

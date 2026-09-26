@@ -1,0 +1,140 @@
+# pankhllm config. Prices are USD per 1M tokens; verify against your vendor's page.
+providers:
+  anthropic:
+    kind: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+  openai:
+    kind: openai
+    api_key_env: OPENAI_API_KEY
+  azure:
+    kind: azure                          # model: below is the deployment name
+    base_url: https://my-resource.openai.azure.com
+    api_key_env: AZURE_OPENAI_API_KEY
+    api_version: "2024-10-21"            # omit to use the /openai/v1 surface
+  local:
+    kind: openai              # Ollama / vLLM / LM Studio all speak the OpenAI API
+    base_url: http://localhost:11434/v1
+    timeout_secs: 60
+
+models:
+  # Your GPU box. Zero marginal cost, private, first pick for the fast tier.
+  - name: local-llama
+    provider: local
+    model: llama3.1:8b
+    tier: fast
+    context_window: 32000
+    max_output: 4096
+    tags: [private, local]
+    timeout_secs: 20
+    max_concurrency: 4
+
+  - name: haiku
+    provider: anthropic
+    model: claude-haiku-4-5
+    tier: fast
+    context_window: 200000
+    cost: { input: 1.0, output: 5.0 }
+    timeout_secs: 30
+
+  - name: sonnet
+    provider: anthropic
+    model: claude-sonnet-5
+    tier: balanced
+    context_window: 1000000
+    cost: { input: 2.0, output: 10.0 }
+    effort: medium
+    timeout_secs: 60
+
+  - name: gpt
+    provider: openai
+    model: gpt-5
+    tier: balanced
+    context_window: 400000
+    cost: { input: 1.25, output: 10.0 }
+    timeout_secs: 60
+
+  - name: azure-mini
+    provider: azure
+    model: gpt-4o-mini-prod              # your Azure deployment name
+    tier: fast
+    context_window: 128000
+    cost: { input: 0.15, output: 0.6 }
+    tags: [eu]
+    timeout_secs: 30
+
+  - name: opus
+    provider: anthropic
+    model: claude-opus-5
+    tier: reasoning
+    context_window: 1000000
+    cost: { input: 5.0, output: 25.0 }
+    effort: high
+    timeout_secs: 120
+
+routing:
+  # Domain rules run before the built-in classifier; first match wins, so put
+  # the rules that must win (alerts, escalations) above the broad KPI ones.
+  rules:
+    - { name: alerts, any: ["alert", "anomal"], intent: reasoning, tier: reasoning }
+    - { name: kpi-lookup, any: ["call activity", "fte", "trx", "nrx", "reach", "frequency"], intent: lookup, tier: fast }
+  default_tier: balanced
+  intents:                 # intent -> tier
+    chitchat: fast
+    lookup: fast
+    extraction: fast
+    summarization: balanced
+    synthesis: balanced
+    reasoning: reasoning
+    multi_hop: reasoning
+    code: reasoning
+  weak_retrieval:
+    threshold: 0.3         # set to your retriever's score scale
+    action: escalate       # escalate | abstain | ignore
+  cascade:
+    enabled: true
+    max_steps: 2           # extra attempts after the first
+  confidence:
+    threshold: 0.55
+    # verifier: haiku      # grade borderline answers with a cheap model (set routable: false on it)
+    verify_below: 0.85     # answers scoring at or above this skip the verifier round trip
+    verifier_timeout_ms: 3000
+    on_ambiguous: clarify  # clarify | escalate | ignore
+  hedge:
+    after_ms: 1500         # start the next candidate if the first has not answered by then
+  agent_loop:
+    tool_select: fast      # choosing a tool is easy
+    after_tool_result: balanced
+  max_cost_usd: 0.25       # per request hard ceiling
+  max_latency_ms: 45000    # whole request, cascade included
+  default_timeout_secs: 60
+  default_max_tokens: 2048
+  error_cooldown_secs: 30
+
+prompts:
+  dir: ./prompts           # skills/*.md, agents/*.yaml live here; reference by file stem
+
+server:
+  max_body_mb: 32
+  max_in_flight: 512       # beyond this, immediate 503 instead of queueing
+  # request_timeout_ms: 50000   # defaults to routing.max_latency_ms + 5000
+
+# ---- Planner lane: the model reads, your executor runs, the router checks ----
+# planner:
+#   enabled: true
+#   model: haiku                      # a fast model; mark it routable: false if it should only plan
+#   executor: { url: "http://127.0.0.1:7000/execute", timeout_ms: 2000 }
+#   catalog: ./catalog.yaml           # operations with typed params; or list them inline
+#   intents: [lookup, extraction, synthesis]
+
+# ---- System-1 decision engine (Laya via laya-serve, or a Jev-compatible endpoint) ----
+# decisions:
+#   url: http://127.0.0.1:8000/v1/systemone
+#   timeout_ms: 150
+#   min_confidence: 0.85
+#   mode: shadow                      # act | shadow
+#   planner: true
+#   tools: false
+
+# ---- Trace database, self-healing and autotune ----
+# store: { path: ./state/pankhllm.db, redact_questions: false, retention_days: 30 }
+# heal: { quarantine_after_failures: 2, autotune: true }

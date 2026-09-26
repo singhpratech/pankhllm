@@ -1,0 +1,39 @@
+providers:
+  local: { kind: openai, base_url: http://localhost:11434/v1, timeout_secs: 120 }
+models:
+  - { name: small, provider: local, model: gemma4:12b, tier: fast, context_window: 32000, effort: none, routable: false }
+  - { name: agent, provider: local, model: gemma4:12b, tier: balanced, context_window: 32000, effort: none, max_output: 300 }
+routing:
+  learned_routes: { enabled: false }
+  max_latency_ms: 120000
+decisions:
+  url: http://127.0.0.1:8000/v1/systemone
+  timeout_ms: 400
+  min_confidence: 0.85
+  mode: act
+planner:
+  enabled: true
+  model: small
+  timeout_ms: 8000
+  intents: [lookup, extraction, synthesis, summarization, chitchat]
+  executor: { url: "http://127.0.0.1:7124/execute", timeout_ms: 2000 }
+  operations:
+    - name: metric_by_period
+      description: The value of one metric (calls, reach or revenue) for one territory code in one month.
+      params:
+        metric: { type: enum, values: [calls, reach, revenue] }
+        entity: { type: string, max_len: 40, pattern: '[A-Z]-\d{3}' }
+        period: { type: string, pattern: '\d{4}-\d{2}' }
+      answer_template: "{{params.entity}} {{params.metric}} in {{params.period}}: {{value|N0}}"
+    - name: top_entities
+      description: Rank the top N territories by one metric in one month.
+      params:
+        metric: { type: enum, values: [calls, reach, revenue] }
+        n: { type: integer, min: 1, max: 50, default: 5 }
+        period: { type: string, pattern: '\d{4}-\d{2}' }
+    - name: entity_owner
+      description: Who owns or covers one territory code.
+      params:
+        entity: { type: string, max_len: 40, pattern: '[A-Z]-\d{3}' }
+      answer_template: "{{params.entity}} is covered by {{owner}}."
+store: { path: ./state/bench-traces.db }

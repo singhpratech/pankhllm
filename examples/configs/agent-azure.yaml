@@ -1,0 +1,95 @@
+# pankhllm in front of a tool-using agent on Azure OpenAI.
+# Goal: sub-second on repeat and pre-resolved questions, one cheap hop on the rest,
+# the big model only for synthesis. Secrets come from the environment.
+providers:
+  azure:
+    kind: azure
+    base_url: https://my-resource.openai.azure.com
+    api_key_env: AZURE_OPENAI_API_KEY
+    api_version: "2024-10-21"        # omit to use /openai/v1
+    timeout_secs: 90
+    connect_timeout_secs: 3
+
+models:
+  # Picks tools and writes their arguments. Cheap and fast.
+  - name: mini
+    provider: azure
+    model: my-small-deployment        # your deployment name
+    tier: fast
+    context_window: 400000
+    effort: low
+    cost: { input: 0.25, output: 2 }
+    timeout_secs: 20
+    max_concurrency: 64
+  # Explains results, handles anything novel.
+  - name: big
+    provider: azure
+    model: my-large-deployment
+    tier: balanced
+    context_window: 400000
+    effort: medium
+    cost: { input: 2.5, output: 15 }
+    timeout_secs: 60
+  # Semantic cache embeddings (never routed to).
+  - name: embed
+    provider: azure
+    model: my-embedding-deployment
+    kind: embedding
+    tier: fast
+    context_window: 8000
+
+cache:
+  enabled: true
+  ttl_secs: 604800                    # a week; the app bumps cache_key on data refresh
+  max_entries: 50000
+  scope: question_only                # agent + skill context is stable; data version lives in cache_key
+  require_cache_key: true             # cache_key must carry data version + business unit + row-level scope
+  min_confidence: 0.7
+  semantic:
+    embedding_model: embed
+    threshold: 0.95
+
+routing:
+  learned_routes:
+    enabled: true                     # generalise the planner's tool calls into shapes and serve them
+    min_similarity: 0.93
+    min_observations: 2               # a shape must succeed twice before it is served without a model
+    allow_tools: [exec_template]      # learn the structured tool only; never the free-text code tool
+    max_arg_len: 80
+    vocab_file: ./entities.txt        # products, regions, segments: one per line, any casing
+    persist_path: ./state/routes.json # trained state; loaded at start, saved every minute and on shutdown
+  speculative_answer:
+    enabled: true                     # planner also drafts the answer template; router renders it
+  rules:
+    # Hand-written routes for shapes you want fixed regardless of what the model does.
+    - name: kpi-by-territory-month
+      pattern: '(?i)(?:call activity|hcp calls|visits) (?:for|in) (?P<territory>T-\d{3}) (?:for|in) (?P<month>\d{4}-\d{2})'
+      respond_with_tool: { name: exec_query, arguments: { template: kpi_by_territory_month, territory: "{{territory}}", month: "{{month}}" } }
+    - name: alerts
+      any: ["alert", "anomal"]
+      intent: reasoning
+      tier: balanced
+    - name: kpi-lookup
+      any: ["call activity", "fte", "trx", "nrx", "reach", "frequency"]
+      intent: lookup
+      tier: fast
+  agent_loop:
+    tool_select: fast                 # choosing / parameterising a tool: mini
+    after_tool_result: balanced       # explaining the result: big
+  confidence:
+    threshold: 0.55
+    on_ambiguous: clarify
+  hedge:
+    after_ms: 1200                    # if mini has not started answering, race big
+  cascade: { enabled: true, max_steps: 2 }
+  max_latency_ms: 30000
+  default_max_tokens: 1200
+
+prompts:
+  dir: ./prompts                      # agent.yaml + SKILL.md live here
+  auto_select: true                   # send always-on files plus skills whose triggers match the question
+  max_auto: 3
+
+server:
+  api_keys_env: PANKH_API_KEYS
+  max_in_flight: 512

@@ -1,0 +1,14 @@
+{"q": "What were calls for T-112 in 2026-08?", "op": "metric_by_period"}
+{"q": "reach for T-207 in 2026-09", "op": "metric_by_period"}
+{"q": "How many calls did T-300 log in 2026-10?", "op": "metric_by_period"}
+{"q": "revenue of T-401 during 2026-11", "op": "metric_by_period"}
+{"q": "Top 5 territories by calls in 2026-08", "op": "top_entities"}
+{"q": "Which 10 territories had the most revenue in 2026-09?", "op": "top_entities"}
+{"q": "best 3 territories by reach in 2026-10", "op": "top_entities"}
+{"q": "Who covers T-112?", "op": "entity_owner"}
+{"q": "Which rep owns territory T-207?", "op": "entity_owner"}
+{"q": "owner of T-300", "op": "entity_owner"}
+{"q": "Why did calls fall in T-112 in 2026-08?", "op": "UNSUPPORTED"}
+{"q": "What should we do about low reach next quarter?", "op": "UNSUPPORTED"}
+{"q": "Write a haiku about sales teams", "op": "UNSUPPORTED"}
+{"q": "Explain what the reach KPI means", "op": "UNSUPPORTED"}

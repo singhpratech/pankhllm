@@ -1,0 +1,16 @@
+<!-- NuGet package carrying the router binary per runtime identifier, plus a launcher.
+     dotnet pack -p:Version=0.1.0 after placing binaries in runtimes/<rid>/native/. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Pankhllm.Server</PackageId>
+    <Version>0.1.0</Version>
+    <Description>pankhllm router binary for .NET teams, with PankhllmServer.Start().</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="runtimes/**/native/*" Pack="true" PackagePath="runtimes/" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

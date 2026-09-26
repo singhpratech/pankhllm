@@ -1,0 +1,19 @@
+# Eval config: cloud models for quality, local Gemma for private data, a non-routable judge.
+providers:
+  openai: { kind: openai, api_key_env: OPENAI_API_KEY, timeout_secs: 60 }
+  local:  { kind: openai, base_url: http://localhost:11434/v1, timeout_secs: 300 }
+models:
+  - { name: mini,  provider: openai, model: gpt-4o-mini, tier: fast, context_window: 128000, cost: { input: 0.15, output: 0.6 }, timeout_secs: 30 }
+  - { name: gpt4o, provider: openai, model: gpt-4o, tier: balanced, context_window: 128000, cost: { input: 2.5, output: 10 }, timeout_secs: 60 }
+  - { name: gemma-local, provider: local, model: gemma4:12b, tier: fast, context_window: 32000, max_output: 1024, tags: [private, local], timeout_secs: 180 }
+  - { name: judge, provider: openai, model: gpt-4o-mini, tier: fast, context_window: 128000, cost: { input: 0.15, output: 0.6 }, timeout_secs: 20, routable: false }
+routing:
+  rules:
+    - { name: alerts, any: ["alert", "anomal"], intent: reasoning, tier: balanced }
+    - { name: kpi-lookup, any: ["call activity", "fte", "trx", "nrx"], intent: lookup, tier: fast }
+  confidence: { threshold: 0.55, verifier: judge, on_ambiguous: clarify }
+  agent_loop: { tool_select: fast, after_tool_result: balanced }
+  max_latency_ms: 120000
+  default_max_tokens: 400
+prompts:
+  dir: ./prompts
