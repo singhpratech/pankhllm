@@ -1,5 +1,6 @@
-<p align="center"><img src="site/banner.svg" alt="pankhllm: the LLM gateway that learns to skip the LLM" width="100%"></p>
+<p align="center"><a href="https://singhpratech.github.io/pankhllm/"><img src="site/banner.svg" alt="pankhllm: the LLM gateway that learns to skip the LLM" width="100%"></a></p>
 
+[![Website](https://img.shields.io/badge/site-live%20demo-8b5cf6.svg)](https://singhpratech.github.io/pankhllm/)
 [![ci](https://github.com/singhpratech/pankhllm/actions/workflows/ci.yml/badge.svg)](https://github.com/singhpratech/pankhllm/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2021-orange.svg?logo=rust)](Cargo.toml)
@@ -47,6 +48,8 @@ that becomes tomorrow's training data. One Rust binary. OpenAI-compatible. Chang
 Every number comes from a run in this repository. How we measured, including where it's
 weaker (96.5% precision on phrasing written by a different model), is in
 [docs/BENCHMARK-DECISIONS.md](docs/BENCHMARK-DECISIONS.md) and [docs/JOURNAL.md](docs/JOURNAL.md).
+
+**See it run** at [singhpratech.github.io/pankhllm](https://singhpratech.github.io/pankhllm/): a recorded race between an LLM planner and pankhllm's own model on the same questions.
 
 **Drop it in.** Nothing in your agent changes:
 
