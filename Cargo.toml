@@ -1,6 +1,6 @@
 [package]
 name = "pankhllm"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "The LLM gateway that learns to skip the LLM: trains its own tiny decision model on your agent's traffic and answers repeat decisions in 0.2 ms with no LLM call. OpenAI-compatible, one Rust binary."
 license = "MIT"

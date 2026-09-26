@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Pankhllm</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Description>Client for pankhllm, the LLM gateway that learns to skip the LLM. Client and planner-lane executor.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -1,6 +1,6 @@
 {
   "name": "@pankhllm/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Client for pankhllm, the LLM gateway that learns to skip the LLM.",
   "repository": { "type": "git", "url": "https://github.com/singhpratech/pankhllm.git", "directory": "sdks/typescript" },
   "type": "module",

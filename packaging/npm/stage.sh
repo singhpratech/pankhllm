@@ -2,7 +2,7 @@
 # Stage a platform package from a built binary:
 #   packaging/npm/stage.sh linux-x64 target/release/pankhllm 0.1.0
 set -euo pipefail
-platform="$1"; binary="$2"; version="${3:-0.1.0}"
+platform="$1"; binary="$2"; version="${3:-0.1.1}"
 os="${platform%-*}"; cpu="${platform#*-}"
 dir="$(dirname "$0")/dist/@pankhllm/$platform"
 mkdir -p "$dir/bin"

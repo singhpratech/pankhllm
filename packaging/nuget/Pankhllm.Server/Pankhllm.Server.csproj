@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Pankhllm.Server</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Description>pankhllm router binary for .NET teams, with PankhllmServer.Start().</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

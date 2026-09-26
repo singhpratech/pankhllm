@@ -1,6 +1,6 @@
 [package]
 name = "pankhllm-client"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Client for pankhllm, the LLM gateway that learns to skip the LLM."
 homepage = "https://singhpratech.github.io/pankhllm/"
