@@ -380,17 +380,32 @@ Inbound auth: set `server.api_keys_env` and clients send `Authorization: Bearer`
 
 ## Prior art, and what is ours
 
-pankhllm does not ship a model. It orchestrates other people's models, and says so:
+**What pankhllm ships that is its own.** The decision models are pankhllm's: hashed-feature
+linear classifiers over a question's shape, trained by the router itself from the
+generative planner's decisions (the teacher), stored in a 262 KB file, deciding in about
+0.2 ms on a CPU. The structural constraint around them is also ours: before any model
+votes, the slot filler works out which operations the question can satisfy exactly, the
+model chooses only among those, and a vote for an operation the question does not fit is
+sent to the teacher instead. So are the learned routes and speculative answer templates,
+the caller-owned executor contract, the trace store and overnight miner, and the
+skill-routing model that learns from skill files and logs.
 
-- **Typed, non-autoregressive decisions** ("System 1") come from [Jev](https://www.langchain.com/blog/building-a-harness-with-jev) (TypeSafe AI) and [Laya](https://github.com/NandhaKishorM/laya) (Convai Innovations). pankhllm calls them over their `/v1/systemone` interface as a pluggable engine, exactly as it calls OpenAI or Anthropic for generation. It works without one.
-- **Routing across providers** is the category [LiteLLM](https://github.com/BerriAI/litellm) defined; the OpenAI wire format is OpenAI's.
+**What pankhllm does not ship.** It has no LLM. Generation, and every decision it is not
+sure about, go to whatever models you configure.
 
-What pankhllm adds is the layer none of those provide: deciding per request which lane can *prove* an answer, and learning to prove more of them over time.
+**Ideas and interfaces we build on, with credit:**
 
-- **Structural constraint of decisions.** Before a decision model votes, the slot filler works out which operations the question can satisfy exactly and the model only chooses among those. On our benchmark this is what took Laya from 8 of 14 zero-shot to 8 of 10 answerable questions accepted with no wrong answers.
-- **Learned routes and speculative answer templates.** Tool calls and plans generalised into typed shapes from clean turns, so a seen shape needs no model at all, decision model included.
-- **A caller-owned executor contract** that keeps data access, row-level scope and query building in the application, in any language.
-- **Tenant-scoped caching, shadow calibration, quarantine and the overnight miner**, which turn traffic into thresholds, vocabulary and fine-tuning data for whichever decision model you use.
+- **Typed, non-autoregressive "System 1" decisions** as a product category come from
+  [Jev](https://www.langchain.com/blog/building-a-harness-with-jev) by TypeSafe AI and
+  [Laya](https://github.com/NandhaKishorM/laya) by Convai Innovations (Apache 2.0). pankhllm
+  can use either as an external decision engine over their `/v1/systemone` interface
+  (`decisions.engine: external`). We benchmarked against Laya; the structural constraint took
+  it from 8 of 14 zero-shot to 8 of 10 answerable questions accepted with none wrong. The
+  default engine is pankhllm's own model, which needs neither.
+- **Routing across providers** is the category [LiteLLM](https://github.com/BerriAI/litellm)
+  defined. The wire format is OpenAI's.
+- **Trusted publishing, prompt caching and structured outputs** are the registries' and
+  providers' features; pankhllm just uses them.
 
 ## Roadmap
 
