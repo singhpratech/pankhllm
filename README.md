@@ -1,6 +1,7 @@
 <p align="center"><a href="https://singhpratech.github.io/pankhllm/"><img src="site/banner.svg" alt="pankhllm: the LLM gateway that learns to skip the LLM" width="100%"></a></p>
 
 [![Website](https://img.shields.io/badge/site-live%20demo-8b5cf6.svg)](https://singhpratech.github.io/pankhllm/)
+[![Launch article](https://img.shields.io/badge/read-launch%20article-f59e0b.svg)](https://theaivibe.org/blog/pankhllm-llm-gateway-learns-to-skip-the-llm)
 [![ci](https://github.com/singhpratech/pankhllm/actions/workflows/ci.yml/badge.svg)](https://github.com/singhpratech/pankhllm/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/singhpratech/pankhllm/blob/main/LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2021-orange.svg?logo=rust)](https://www.rust-lang.org/)
@@ -52,6 +53,8 @@ weaker (96.5% precision on phrasing written by a different model), is in
 [docs/BENCHMARK-DECISIONS.md](docs/BENCHMARK-DECISIONS.md) and [docs/JOURNAL.md](docs/JOURNAL.md).
 
 **See it run** at [singhpratech.github.io/pankhllm](https://singhpratech.github.io/pankhllm/): a recorded race between an LLM planner and pankhllm's own model on the same questions.
+
+**Read the launch article:** [pankhllm: the LLM gateway that learns to skip the LLM, without replacing the stack you already run](https://theaivibe.org/blog/pankhllm-llm-gateway-learns-to-skip-the-llm) on The AI Vibe.
 
 **Drop it in.** Nothing in your agent changes:
 
