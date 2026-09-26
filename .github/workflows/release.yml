@@ -31,7 +31,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       publish: ${{ steps.v.outputs.publish }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: v
         run: |
           crate=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
@@ -57,7 +57,7 @@ jobs:
           - { platform: win32-x64,    rid: win-x64,     os: windows-latest,   target: x86_64-pc-windows-msvc,    exe: pankhllm.exe }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -140,7 +140,7 @@ jobs:
       id-token: write   # trusted publishing: no PyPI token
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -175,7 +175,7 @@ jobs:
       id-token: write   # trusted publishing after the first manual publish
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - id: auth
         if: env.HAS_TOKEN == ''
@@ -205,7 +205,7 @@ jobs:
       id-token: write   # trusted publishing once each package exists
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -254,7 +254,7 @@ jobs:
       id-token: write   # trusted publishing: no NuGet API key
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
